@@ -1,0 +1,10 @@
+TOOLBOX – so wird daraus eine App
+
+Schnellster Weg (ohne APK-Datei):
+1. Alle Dateien dieses Ordners bei GitHub hochladen (Konto + neues öffentliches Repository, "Add file" > "Upload files").
+2. Repository > Settings > Pages > Branch "main" > Save. Nach ca. 1-2 Minuten erscheint dein Link (https://NAME.github.io/REPO/).
+3. Link in Chrome öffnen > Menü (drei Punkte) > "App installieren" bzw. "Zum Startbildschirm hinzufügen". Fertig.
+
+Echte APK-Datei:
+4. pwabuilder.com öffnen, deinen Link einfügen, "Package for stores" > Android > Signing key "New" lassen > Download.
+5. Die ZIP entpacken, die .apk-Datei auf dem Handy öffnen und installieren (Installation aus unbekannter Quelle erlauben).
