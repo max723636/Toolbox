@@ -1,0 +1,23 @@
+TOOLBOX – so wird daraus eine App
+
+NEU in Version 1.3: Video-Tool (umwandeln in GIF/MP4/WebM, Dateigröße einstellen, Wasserzeichen entfernen).
+
+UPDATE (du hast schon eine Toolbox-App/APK):
+1. Öffne dein GitHub-Repository und lade ALLE Dateien dieses Ordners erneut hoch ("Add file" > "Upload files"). Gleichnamige Dateien werden ersetzt – wichtig sind index.html und sw.js.
+2. Mit "Commit changes" bestätigen. Nach ca. 1-2 Minuten ist die neue Version online.
+3. Öffne die App einmal mit Internet und schließe sie danach komplett (aus der App-Übersicht wegwischen). Beim nächsten Start ist das Video-Tool da.
+   Eine neue APK ist NICHT nötig, die App lädt automatisch deine Seite. Repository öffentlich lassen, Pages eingeschaltet lassen.
+
+Schnellster Weg (neu einrichten, ohne APK-Datei):
+1. Alle Dateien dieses Ordners bei GitHub hochladen (Konto + neues öffentliches Repository, "Add file" > "Upload files").
+2. Repository > Settings > Pages > Branch "main" > Save. Nach ca. 1-2 Minuten erscheint dein Link (https://NAME.github.io/REPO/).
+3. Link in Chrome öffnen > Menü (drei Punkte) > "App installieren" bzw. "Zum Startbildschirm hinzufügen". Fertig.
+
+Echte APK-Datei:
+4. pwabuilder.com öffnen, deinen Link einfügen, "Package for stores" > Android > Signing key "New" lassen > Download.
+5. Die ZIP entpacken, die .apk-Datei auf dem Handy öffnen und installieren (Installation aus unbekannter Quelle erlauben).
+
+Tipps zum Video-Tool:
+- Alles läuft auf deinem Handy, nichts wird hochgeladen. Lange oder sehr große Videos brauchen Zeit: Bildschirm anlassen.
+- Wasserzeichen: Rahmen drüberziehen. Bei wandernden Wasserzeichen "Automatisch folgen" nutzen oder an mehreren Zeitpunkten neu setzen.
+- Bitte nur Wasserzeichen aus eigenen Videos oder mit Erlaubnis des Urhebers entfernen.
