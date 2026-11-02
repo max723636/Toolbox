@@ -1988,10 +1988,13 @@ function drawProf(){
   const f=S.pf,np=!DB.px||!DB.px.url;
   el.innerHTML=`${head(f.id?'Verbindung bearbeiten':'Neue Verbindung',DB.p.length?'prof-x':'')}
   ${DB.p.length?'':'<p class="st">Verwalte deine Server aus einem Pterodactyl-Panel: Konsole, Dateien, Backups, Zeitpläne und mehr. Du brauchst nur die Adresse deines Panels und einen persönlichen API-Schlüssel.</p>'}
+  ${f.id?'':`<div class="banner ok"><b>Kein eigenes Panel?</b> Mit dem <b>Handy-Panel</b> laufen Server (z. B. Minecraft) direkt auf deinem Handy – über die App Termux, ohne Docker.<button class="btn" data-a="hp-open">${ico('server',18)}Handy-Panel einrichten</button></div>`}
   <label>Name (frei wählbar)</label><input id="pn" value="${esc(f.name)}" placeholder="z. B. Mein Hoster" autocomplete="off">
   <label>Panel-Adresse</label><input id="pu" value="${esc(f.url)}" placeholder="https://panel.beispiel.de" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false">
   <label>API-Schlüssel</label><div class="addrow" style="margin-top:0"><input id="pk" type="password" value="${esc(f.key)}" placeholder="ptlc_…" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn" data-a="eye" aria-label="Anzeigen">${ico('eye',18)}</button></div>
   <p class="st">So bekommst du den Schlüssel: Im Panel (Webseite) oben rechts auf dein Konto tippen → <b>API-Zugangsdaten</b> → Beschreibung eintippen → <b>Erstellen</b> → den Schlüssel kopieren (er wird nur einmal angezeigt) und hier einfügen.</p>
+  <label>Admin-Schlüssel (optional)</label><div class="addrow" style="margin-top:0"><input id="pa" type="password" value="${esc(f.akey||'')}" placeholder="ptla_…" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn" data-a="eye2" aria-label="Anzeigen">${ico('eye',18)}</button></div>
+  <p class="st">Nur wenn dir das Panel gehört: Damit kannst du in der App <b>Server erstellen</b>, Benutzer, Nodes und Ports verwalten. Im Panel: <b>Admin → Application API → Create New</b> → überall „Read &amp; Write“.</p>
   <label>Zugriff</label>
   <div class="seg" id="pvia"><button data-v="px"${f.via==='px'?' class="on"':''}>Über Vermittler</button><button data-v="direct"${f.via==='direct'?' class="on"':''}>Direkt</button></div>
   <p class="st">${f.via==='px'?'Empfohlen, wenn du nicht selbst Admin des Panels bist.':'Nur sinnvoll, wenn dein Hoster Zugriffe von fremden Web-Apps freigegeben hat (die meisten tun das nicht).'}</p>
@@ -2002,18 +2005,19 @@ function drawProf(){
   <p class="foot">${ico('lock',14)}Der Schlüssel wird nur auf diesem Gerät gespeichert und nicht ins Backup übernommen.</p>`;
 }
 function newProf(){S.pf={name:'',url:'',key:'',via:DB.px&&DB.px.url?'px':'direct'};if(!DB.px||!DB.px.url)S.pf.via='px';S.scr='prof';draw()}
-function readPf(){const g=i=>($(i,el)||{}).value;const f=S.pf;f.name=(g('#pn')||'').trim();f.url=g('#pu')||'';f.key=(g('#pk')||'').trim()}
+function readPf(){const g=i=>($(i,el)||{}).value;const f=S.pf;f.akey=(g('#pa')||'').trim();f.name=(g('#pn')||'').trim();f.url=g('#pu')||'';f.key=(g('#pk')||'').trim()}
 
 async function savePf(){
   readPf();const f=S.pf,url=normUrl(f.url);
   if(!url)return info('Panel-Adresse fehlt','Trage die Adresse deines Panels ein, z. B. <b>https://panel.beispiel.de</b>.');
   if(!f.key)return info('API-Schlüssel fehlt','Füge den Schlüssel aus dem Panel ein (Konto → API-Zugangsdaten).');
-  if(/^ptla_/.test(f.key))return info('Falscher Schlüssel-Typ','Das ist ein Admin-Schlüssel (ptla_). Hier wird ein <b>Client-Schlüssel</b> (beginnt mit ptlc_) aus deinem Konto gebraucht: Konto → API-Zugangsdaten.');
+  if(/^ptla_/.test(f.key))return info('Falscher Schlüssel-Typ','Das ist ein Admin-Schlüssel (ptla_). Er gehört in das Feld <b>Admin-Schlüssel</b>. Oben wird ein <b>Client-Schlüssel</b> (beginnt mit ptlc_) aus deinem Konto gebraucht: Konto → API-Zugangsdaten.');
+  if(f.akey&&/^ptlc_/.test(f.akey))return info('Falscher Schlüssel-Typ','Im Feld <b>Admin-Schlüssel</b> steht ein Client-Schlüssel (ptlc_). Ein Admin-Schlüssel beginnt mit <b>ptla_</b> (Admin → Application API).');
   if(f.via==='px'&&(!DB.px||!DB.px.url))return info('Vermittler fehlt','Richte zuerst den Vermittler ein (Knopf oben) oder wähle „Direkt“.');
-  if(f.via==='direct'&&/^http:/i.test(url)&&location.protocol==='https:')return info('Panel ohne HTTPS','Dein Panel ist nur über <b>http://</b> erreichbar. Diese App läuft über https und darf deshalb nicht direkt darauf zugreifen (Browser-Sicherheitsregel). Wähle bei „Zugriff“ den Eintrag <b>Über Vermittler</b>.');
+  if(f.via==='direct'&&/^http:/i.test(url)&&location.protocol==='https:'&&!/^http:\/\/(127\.|localhost|\[::1\])/i.test(url))return info('Panel ohne HTTPS','Dein Panel ist nur über <b>http://</b> erreichbar. Diese App läuft über https und darf deshalb nicht direkt darauf zugreifen (Browser-Sicherheitsregel). Wähle bei „Zugriff“ den Eintrag <b>Über Vermittler</b>.');
   let p=f.id&&DB.p.find(x=>x.id===f.id);
   if(!p){p={id:uid()};DB.p.push(p)}
-  Object.assign(p,{name:f.name||hostOf(url),url,key:f.key,via:f.via});
+  Object.assign(p,{name:f.name||hostOf(url),url,key:f.key,via:f.via,akey:f.akey||''});
   DB.cur=p.id;save();S.scr='list';S.list=null;S.listErr=null;draw();loadList();
 }
 
@@ -2131,12 +2135,12 @@ const listRows=()=>{const v=visList();return v.map(s=>`<div class="item" data-ro
 function drawList(){
   const p=cur();if(!p){newProf();return}
   const ls=S.list;
-  el.innerHTML=`<div class="addrow" style="margin-top:6px"><select id="ps" style="flex:1">${DB.p.map(x=>`<option value="${x.id}"${x.id===p.id?' selected':''}>${esc(x.name)}</option>`).join('')}<option value="+">＋ Neue Verbindung …</option></select><button class="iconbtn" data-a="reload" aria-label="Aktualisieren">${ico('refresh',18)}</button><button class="iconbtn" data-a="pmenu" aria-label="Verbindung verwalten">${ico('sliders',18)}</button></div>
+  el.innerHTML=`<div class="addrow" style="margin-top:6px"><select id="ps" style="flex:1">${DB.p.map(x=>`<option value="${x.id}"${x.id===p.id?' selected':''}>${esc(x.name)}</option>`).join('')}<option value="+">＋ Neue Verbindung …</option></select>${p.akey?`<button class="iconbtn" data-a="ad-open" aria-label="Panel verwalten">${ico('shield',18)}</button>`:''}<button class="iconbtn" data-a="reload" aria-label="Aktualisieren">${ico('refresh',18)}</button><button class="iconbtn" data-a="pmenu" aria-label="Verbindung verwalten">${ico('sliders',18)}</button></div>
   ${S.loading&&!ls?'<p class="empty">Lade Server …</p>':''}
   ${S.listErr?`<div class="banner er"><b>Das hat nicht geklappt.</b><br>${esc(S.listErr)}<button class="btn" data-a="diag">${ico('check',18)}Verbindung prüfen</button></div>`:''}
   ${ls&&ls.length>6?`<input id="sq" placeholder="Server suchen …" value="${esc(S.q||'')}" style="margin-top:12px" autocomplete="off">`:''}
   ${ls?`<div class="list" id="sl">${listRows()}</div>`:''}
-  ${ls&&!ls.length?'<p class="empty">Für diesen Schlüssel gibt es keine Server.</p>':''}`;
+  ${ls&&!ls.length?(p.akey?`<p class="empty">Noch keine Server.</p><button class="btn pri" data-a="ad-new0">${ico('plus',18)}Ersten Server erstellen</button>`:'<p class="empty">Für diesen Schlüssel gibt es keine Server.</p>'):''}`;
 }
 async function loadList(quiet){
   const gen=S.lg=++GEN,p=cur();if(!p)return;
@@ -3009,11 +3013,274 @@ Object.assign(H,{
   'set-ren':()=>setRen(),'set-rei':()=>setRei(),
   cpy:b=>copyText(b.dataset.v)
 });
+/* ----- Admin-Bereich (Application API, Schlüssel ptla_) ----- */
+Object.assign(P,{shield:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0M16 4.5a3.5 3.5 0 010 7M18 14.5a6 6 0 013.5 5.5"/>'});
+async function aapi(method,path,o){
+  o=o||{};const p=o.p||cur();if(!p||!p.akey)throw new ApiErr('Für diese Verbindung ist kein Admin-Schlüssel hinterlegt.');
+  let url=p.url+'/api/application'+path;if(o.q)url+=(path.includes('?')?'&':'?')+q2(o.q);
+  const headers={Authorization:'Bearer '+p.akey,Accept:'application/json'};let body;
+  if(o.json!==undefined){headers['Content-Type']='application/json';body=JSON.stringify(o.json)}
+  const res=await raw(p,method,url,{headers,body,signal:o.signal,timeout:o.timeout});
+  if(res.status===204)return null;
+  const txt=await res.text();let data=txt;try{data=JSON.parse(txt)}catch(e){}
+  if(res.ok){if(typeof data==='string'&&/^\s*</.test(data))throw new ApiErr('Unerwartete Antwort (keine API). Stimmt die Panel-Adresse?');return data===''?null:data}
+  if(res.status===401||res.status===403)throw new ApiErr('Der Admin-Schlüssel wurde abgelehnt oder hat zu wenig Rechte. Erstelle im Panel unter Admin → Application API einen Schlüssel mit „Lesen & Schreiben“ für alle Bereiche.',{status:res.status});
+  throw mkErr(res.status,data,p.via==='px');
+}
+async function aall(path,q){const out=[];for(let page=1;page<=20;page++){const r=await aapi('GET',path,{q:Object.assign({page,per_page:100},q||{})});out.push(...lst(r));const pg=r&&r.meta&&r.meta.pagination;if(!pg||page>=pg.total_pages)break}return out}
+const relOf=(x,k)=>x&&x.relationships&&x.relationships[k]?(x.relationships[k].data?x.relationships[k].data.map(y=>y.attributes||y):(x.relationships[k].attributes||null)):null;
+const ATABS=[['srv','Server','server'],['usr','Benutzer','users'],['nod','Nodes','database'],['egg','Eggs','archive']];
+const mb=v=>+v?(+v>=1024?((+v)/1024).toFixed(+v%1024?1:0).replace('.',',')+' GB':(+v)+' MB'):'unbegrenzt';
+function openAdmin(){const p=cur();if(!p)return;if(!p.akey){S.pf=Object.assign({},p);S.scr='prof';draw();toast('Trage zuerst den Admin-Schlüssel (ptla_) ein.');return}
+  S.scr='admin';S.ad={tab:'srv',d:{},err:{},nd:null,nw:null};draw();adLoad('srv')}
+async function adLoad(k,quiet){
+  const A=S.ad;if(!A)return;A.err[k]=null;if(!quiet){A.d[k]=null;drawAdmin()}
+  try{
+    if(k==='srv')A.d.srv=await aall('/servers',{include:'user,node,allocations'});
+    else if(k==='usr')A.d.usr=await aall('/users');
+    else if(k==='nod'){const[n,l]=await Promise.all([aall('/nodes',{include:'location'}),aall('/locations')]);A.d.nod=n;A.d.loc=l}
+    else if(k==='egg')A.d.egg=await aall('/nests',{include:'eggs'});
+  }catch(e){A.err[k]=fe(e)}
+  if(S.scr==='admin'&&S.ad===A)drawAdmin()}
+function drawAdmin(){
+  const A=S.ad;if(!A)return;const p=cur();
+  if(A.nw)return drawNew();
+  if(A.nd)return drawNode();
+  const d=A.d[A.tab],er=A.err[A.tab];
+  let h=`${head('Panel-Verwaltung','ad-x')}<p class="sv-sub">${esc(p.name)} · ${esc(hostOf(p.url))} · Admin</p>
+  <div class="tabs">${ATABS.map(t=>`<button class="chipb${A.tab===t[0]?' on':''}" data-a="ad-tab" data-t="${t[0]}">${ico(t[2],16)}${t[1]}</button>`).join('')}</div>`;
+  if(er)h+=`<div class="banner er"><b>Das hat nicht geklappt.</b><br>${esc(er)}<button class="btn" data-a="ad-re">${ico('refresh',18)}Erneut versuchen</button></div>`;
+  else if(!d)h+='<p class="empty">Lade …</p>';
+  else if(A.tab==='srv'){
+    h+=`<button class="btn pri" data-a="ad-new">${ico('plus',18)}Neuen Server erstellen</button>${hd('Alle Server',d.length,`<button class="iconbtn" data-a="ad-re" aria-label="Aktualisieren">${ico('refresh',18)}</button>`)}
+    <div class="list">${d.map(s=>{const u=relOf(s,'user'),n=relOf(s,'node'),al=(relOf(s,'allocations')||[]).find(a=>a.id===s.allocation);
+      const stt=s.suspended?['Gesperrt','bad']:s.status==='installing'?['Wird installiert …','mid']:/failed/.test(s.status||'')?['Installation fehlgeschlagen','bad']:['Bereit','run'];
+      return`<div class="item"><span class="dot ${stt[1]}"></span><button class="itb" data-a="ad-srv" data-i="${s.id}"><span class="tx"><b>${esc(s.name)}</b><small>${esc(stt[0])} · ${u?esc(u.username):'Benutzer '+s.user} · ${n?esc(n.name):'Node '+s.node}${al?' · '+esc((al.alias||al.ip)+':'+al.port):''} · ${mb(s.limits&&s.limits.memory)} RAM</small></span></button></div>`}).join('')}</div>
+    ${d.length?'':'<p class="empty">Noch keine Server. Erstelle deinen ersten!</p>'}`;
+  }else if(A.tab==='usr'){
+    h+=`<button class="btn pri" data-a="ad-unew">${ico('plus',18)}Neuer Benutzer</button>${hd('Benutzer',d.length)}
+    <div class="list">${d.map(u=>`<div class="item"><button class="itb" data-a="ad-usr" data-i="${u.id}"><span class="ib sm">${ico('users',18)}</span><span class="tx"><b>${esc(u.username)}${u.root_admin?'<span class="tag">Admin</span>':''}</b><small>${esc(u.email)}${u.first_name||u.last_name?' · '+esc((u.first_name||'')+' '+(u.last_name||'')):''}</small></span></button></div>`).join('')}</div>`;
+  }else if(A.tab==='nod'){
+    const L=A.d.loc||[];
+    h+=`<button class="btn pri" data-a="ad-nnew">${ico('plus',18)}Neuer Node</button>${hd('Nodes',d.length)}
+    <div class="list">${d.map(n=>{const loc=relOf(n,'location')||L.find(l=>l.id===n.location_id);return`<div class="item"><span class="dot ${n.maintenance_mode?'mid':'run'}"></span><button class="itb" data-a="ad-node" data-i="${n.id}"><span class="tx"><b>${esc(n.name)}</b><small>${esc(n.fqdn||'')}${loc?' · '+esc(loc.short):''} · ${mb(n.memory)} RAM · ${mb(n.disk)} Speicher${n.maintenance_mode?' · Wartung':''}</small></span></button></div>`}).join('')}</div>
+    ${d.length?'':'<p class="st">Ein <b>Node</b> ist der Rechner, auf dem die Server wirklich laufen (dort ist „Wings“ installiert). Lege zuerst einen Standort und dann einen Node an.</p>'}
+    ${hd('Standorte',L.length,`<button class="iconbtn" data-a="ad-lnew" aria-label="Standort hinzufügen">${ico('plus',18)}</button>`)}
+    <div class="list">${L.map(l=>`<div class="item"><span class="tx"><b>${esc(l.short)}</b><small>${esc(l.long||'')}</small></span><button class="iconbtn" data-a="ad-ldel" data-i="${l.id}" aria-label="Löschen">${ico('trash',18)}</button></div>`).join('')}</div>`;
+  }else if(A.tab==='egg'){
+    h+=`<p class="st">Eggs sind Vorlagen für Server-Arten (z. B. Minecraft Paper, Discord-Bot). Neue Eggs importierst du im Panel unter Admin → Nests.</p>
+    ${d.map(n=>`${hd(esc(n.name),(relOf(n,'eggs')||[]).length)}<div class="list">${(relOf(n,'eggs')||[]).map(e=>`<div class="item"><span class="tx"><b>${esc(e.name)}</b><small>${esc((e.description||'').slice(0,140))}</small></span></div>`).join('')}</div>`).join('')}`;
+  }
+  h+=`<p class="foot">${ico('shield',14)}<span>Admin-Funktionen nutzen den Admin-Schlüssel dieser Verbindung. <button class="ai-lk" data-a="ad-guide" style="margin:0">Pterodactyl selbst hosten – Anleitung</button></span></p>`;
+  el.innerHTML=h;
+}
+const toYml=(o,n)=>{n=n||0;const p='  '.repeat(n),ys=v=>v===null||v===undefined?'null':typeof v==='string'?(/^[\w./@:-]+$/.test(v)&&!/^(true|false|null|yes|no|on|off|~|[\d.+-].*)$/i.test(v)?v:JSON.stringify(v)):String(v);
+  if(Array.isArray(o))return o.map(v=>v&&typeof v==='object'?p+'-\n'+toYml(v,n+1):p+'- '+ys(v)).join('\n');
+  return Object.entries(o||{}).map(([k,v])=>v&&typeof v==='object'?(Array.isArray(v)&&!v.length?p+k+': []':!Array.isArray(v)&&!Object.keys(v).length?p+k+': {}':p+k+':\n'+toYml(v,n+1)):p+k+': '+ys(v)).join('\n')};
+/* --- Server: Aktionen --- */
+async function adSrv(id){
+  const s=(S.ad.d.srv||[]).find(x=>String(x.id)===String(id));if(!s)return;
+  const a=await menu(s.name,[{id:'open',icon:'terminal',label:'Konsole & Dateien öffnen'},{id:'build',icon:'sliders',label:'Ressourcen ändern (RAM, Speicher, CPU …)'},{id:'det',icon:'edit',label:'Name, Beschreibung, Besitzer'},{id:'start',icon:'key',label:'Startbefehl & Variablen'},
+    s.suspended?{id:'uns',icon:'play',label:'Entsperren'}:{id:'sus',icon:'stop',label:'Sperren'},{id:'rei',icon:'refresh',label:'Neu installieren'},{id:'del',icon:'trash',label:'Löschen',warn:1}],
+    esc('ID '+s.id+' · '+s.identifier+' · '+mb(s.limits.memory)+' RAM · '+mb(s.limits.disk)+' Speicher · CPU '+(+s.limits.cpu?s.limits.cpu+' %':'unbegrenzt')));
+  const re=()=>adLoad('srv',true);
+  if(a==='open'){let c=S.list&&S.list.find(x=>x.id===s.identifier);
+    if(!c){try{const r=await api('GET','/servers/'+encodeURIComponent(s.identifier));c=mapSrv(att(r));(S.list=S.list||[]).push(c)}catch(e){return info('Nicht möglich','Mit dem normalen Schlüssel (ptlc_) dieser Verbindung kommt man nicht an diesen Server. Nutze den Schlüssel eines Admin-Kontos.<br><small>'+esc(fe(e))+'</small>')}}
+    S.ad=null;openSrv(s.identifier)}
+  else if(a==='build'){const l=s.limits||{},f=s.feature_limits||{};
+    const v=await ask({title:'Ressourcen: '+s.name,desc:'0 bedeutet „unbegrenzt“ (bei RAM, Speicher und CPU).',fields:[{id:'memory',label:'Arbeitsspeicher (MB)',type:'number',value:l.memory},{id:'swap',label:'Swap (MB, -1 = unbegrenzt)',type:'number',value:l.swap},{id:'disk',label:'Speicherplatz (MB)',type:'number',value:l.disk},{id:'cpu',label:'CPU (% – 100 = ein Kern)',type:'number',value:l.cpu},{id:'io',label:'Festplatten-Priorität (10–1000)',type:'number',value:l.io||500},
+      {id:'databases',label:'Max. Datenbanken',type:'number',value:f.databases||0},{id:'backups',label:'Max. Backups',type:'number',value:f.backups||0},{id:'allocations',label:'Max. Ports',type:'number',value:f.allocations||0}],ok:'Speichern'});
+    if(!v)return;const n=k=>Math.max(k==='swap'?-1:0,Math.round(+v[k]||0));
+    if(await act(()=>aapi('PATCH','/servers/'+s.id+'/build',{json:{allocation:s.allocation,memory:n('memory'),swap:n('swap'),disk:n('disk'),io:Math.min(1000,Math.max(10,n('io'))),cpu:n('cpu'),threads:l.threads||null,feature_limits:{databases:n('databases'),backups:n('backups'),allocations:n('allocations')}}}),'Ressourcen gespeichert'))re()}
+  else if(a==='det'){const U=S.ad.d.usr||await aall('/users').catch(()=>[]);S.ad.d.usr=U;
+    const v=await ask({title:'Server-Details',fields:[{id:'name',label:'Name',value:s.name},{id:'description',type:'area',rows:2,label:'Beschreibung',value:s.description||''},{id:'user',type:'select',label:'Besitzer',value:s.user,opts:U.map(u=>[u.id,u.username+' ('+u.email+')'])}],ok:'Speichern',check:v=>v.name.trim()?'':'Bitte einen Namen eingeben.'});
+    if(v&&await act(()=>aapi('PATCH','/servers/'+s.id+'/details',{json:{name:v.name.trim(),description:v.description,user:+v.user,external_id:s.external_id||null}}),'Gespeichert'))re()}
+  else if(a==='start'){let eg=null;try{eg=att(await aapi('GET','/nests/'+s.nest+'/eggs/'+s.egg,{q:{include:'variables'}}))}catch(e){}
+    const env=(s.container&&s.container.environment)||{},vars=(relOf(eg,'variables')||[]);
+    const imgs=eg&&eg.docker_images?Object.entries(eg.docker_images):[];const cimg=s.container&&s.container.image;
+    const v=await ask({title:'Startbefehl & Variablen',fields:[{id:'startup',type:'area',rows:3,label:'Startbefehl',value:(s.container&&s.container.startup_command)||''},
+      imgs.length?{id:'image',type:'select',label:'Docker-Image',value:cimg,opts:(imgs.some(x=>x[1]===cimg)?[]:[[cimg,cimg]]).concat(imgs.map(([k,i])=>[i,k]))}:{id:'image',label:'Docker-Image',value:cimg},
+      ...vars.map(x=>({id:'v_'+x.env_variable,label:x.name+' ('+x.env_variable+')',value:env[x.env_variable]!=null?env[x.env_variable]:x.default_value}))],ok:'Speichern'});
+    if(!v)return;const e2={};vars.forEach(x=>{e2[x.env_variable]=v['v_'+x.env_variable]});
+    if(await act(()=>aapi('PATCH','/servers/'+s.id+'/startup',{json:{startup:v.startup,environment:e2,egg:s.egg,image:v.image,skip_scripts:false}}),'Gespeichert – wirkt beim nächsten Start'))re()}
+  else if(a==='sus'){if(await yes('Server sperren?','<b>'+esc(s.name)+'</b> wird gestoppt und kann nicht mehr gestartet werden, bis du ihn entsperrst.','Sperren',true)&&await act(()=>aapi('POST','/servers/'+s.id+'/suspend'),'Gesperrt'))re()}
+  else if(a==='uns'){if(await act(()=>aapi('POST','/servers/'+s.id+'/unsuspend'),'Entsperrt'))re()}
+  else if(a==='rei'){if(await yes('Neu installieren?','Das Installationsskript läuft erneut. Dateien können dabei überschrieben werden.','Neu installieren',true)&&await act(()=>aapi('POST','/servers/'+s.id+'/reinstall'),'Neuinstallation gestartet'))re()}
+  else if(a==='del'){const v=await ask({title:'Server löschen?',desc:'<b>'+esc(s.name)+'</b> wird mit <b>allen Dateien und Backups</b> endgültig gelöscht. Tippe zur Bestätigung den Namen ein.',fields:[{id:'n',label:'Name des Servers'},{id:'force',type:'check',label:'Erzwingen (auch wenn der Node nicht erreichbar ist)'}],ok:'Endgültig löschen',danger:true,check:v=>v.n.trim()===s.name.trim()?'':'Der Name stimmt nicht.'});
+    if(v&&await act(()=>aapi('DELETE','/servers/'+s.id+(v.force?'/force':'')),'Server gelöscht')){if(S.list)S.list=S.list.filter(x=>x.id!==s.identifier);re()}}
+}
+/* --- Neuer Server (Assistent) --- */
+async function adNew(){
+  const A=S.ad;A.nw={st:'load'};drawAdmin();
+  try{const[u,n,ne]=await Promise.all([A.d.usr||aall('/users'),A.d.nod||aall('/nodes',{include:'location'}),A.d.egg||aall('/nests',{include:'eggs'})]);A.d.usr=u;A.d.nod=n;A.d.egg=ne;
+    const eggs=[];ne.forEach(x=>(relOf(x,'eggs')||[]).forEach(e=>eggs.push({nest:x.id,nn:x.name,id:e.id,name:e.name})));
+    A.nw={st:'form',eggs,f:{name:'',description:'',user:u[0]?u[0].id:'',egg:eggs[0]?eggs[0].nest+'/'+eggs[0].id:'',node:n[0]?n[0].id:'',alloc:'',memory:2048,swap:0,disk:10240,cpu:100,io:500,databases:0,backups:1,allocations:1,start:true,image:'',startup:'',env:{}},eg:null,al:null};
+    drawAdmin();await adEgg();await adAllocs();
+  }catch(e){A.nw=null;drawAdmin();info('Das hat nicht geklappt',esc(fe(e)))}}
+async function adEgg(){const N=S.ad&&S.ad.nw;if(!N||!N.f.egg)return;const[nest,id]=N.f.egg.split('/');N.eg=null;drawNew();
+  try{const e=att(await aapi('GET','/nests/'+nest+'/eggs/'+id,{q:{include:'variables'}}));if(S.ad.nw!==N)return;N.eg=e;
+    const imgs=e.docker_images?Object.values(e.docker_images):[];N.f.image=imgs[0]||e.docker_image||'';N.f.startup=e.startup||'';N.f.env={};(relOf(e,'variables')||[]).forEach(v=>{N.f.env[v.env_variable]=v.default_value==null?'':String(v.default_value)})}
+  catch(er){N.eg={err:fe(er)}}drawNew()}
+async function adAllocs(){const N=S.ad&&S.ad.nw;if(!N||!N.f.node)return;N.al=null;drawNew();
+  try{const l=await aall('/nodes/'+N.f.node+'/allocations');if(S.ad.nw!==N)return;N.al=l.filter(a=>!a.assigned);N.f.alloc=N.al[0]?N.al[0].id:''}catch(e){N.al={err:fe(e)}}drawNew()}
+function rdNew(){const N=S.ad&&S.ad.nw;if(!N||N.st!=='form')return;el.querySelectorAll('[data-nf]').forEach(i=>{const k=i.dataset.nf;N.f[k]=i.type==='checkbox'?i.checked:i.value});el.querySelectorAll('[data-ne]').forEach(i=>{N.f.env[i.dataset.ne]=i.value})}
+function drawNew(){
+  const A=S.ad,N=A&&A.nw;if(!N||S.scr!=='admin')return;
+  if(N.st==='load'){el.innerHTML=`${head('Neuer Server','ad-nx')}<p class="empty">Lade Benutzer, Nodes und Eggs …</p>`;return}
+  const f=N.f,U=A.d.usr||[],ND=A.d.nod||[],eg=N.eg,vars=eg&&!eg.err?(relOf(eg,'variables')||[]):[];
+  const inp=(k,l,t,x)=>`<label>${l}</label><input data-nf="${k}" type="${t||'text'}" value="${esc(f[k]==null?'':f[k])}"${x||''} autocomplete="off">`;
+  const imgs=eg&&eg.docker_images?Object.entries(eg.docker_images):[];
+  el.innerHTML=`${head('Neuer Server','ad-nx')}
+  ${inp('name','Name')}<label>Beschreibung (optional)</label><textarea data-nf="description" rows="2">${esc(f.description)}</textarea>
+  <label>Besitzer</label><div class="addrow" style="margin-top:0"><select data-nf="user" style="flex:1">${U.map(u=>`<option value="${u.id}"${String(u.id)===String(f.user)?' selected':''}>${esc(u.username)} (${esc(u.email)})</option>`).join('')}</select><button class="btn" data-a="ad-unew2" aria-label="Neuer Benutzer">${ico('plus',18)}</button></div>
+  <p class="ai-sec">Art des Servers</p>
+  <label>Egg (Vorlage)</label><select data-nf="egg" id="negg">${N.eggs.map(e=>`<option value="${e.nest}/${e.id}"${f.egg===e.nest+'/'+e.id?' selected':''}>${esc(e.nn)} · ${esc(e.name)}</option>`).join('')}</select>
+  ${!N.eggs.length?'<div class="banner">Im Panel gibt es noch keine Eggs.</div>':''}
+  ${eg?eg.err?`<p class="st err">${esc(eg.err)}</p>`:`${imgs.length?`<label>Docker-Image</label><select data-nf="image">${imgs.map(([k,i])=>`<option value="${esc(i)}"${i===f.image?' selected':''}>${esc(k)}</option>`).join('')}</select>`:inp('image','Docker-Image')}
+    <label>Startbefehl</label><textarea data-nf="startup" rows="2" class="code">${esc(f.startup)}</textarea>
+    ${vars.map(v=>`<label>${esc(v.name)}${/required/.test(v.rules||'')?' *':''}</label><input data-ne="${esc(v.env_variable)}" value="${esc(f.env[v.env_variable]||'')}" autocomplete="off" autocapitalize="off" spellcheck="false"><p class="ai-hint">${esc((v.description||'').slice(0,200))} <code>${esc(v.env_variable)}</code></p>`).join('')}`:'<p class="st">Lade Egg …</p>'}
+  <p class="ai-sec">Ressourcen</p>
+  <div class="grid2"><div>${inp('memory','RAM (MB)','number',' min="0"')}</div><div>${inp('disk','Speicher (MB)','number',' min="0"')}</div></div>
+  <div class="grid2"><div>${inp('cpu','CPU (%)','number',' min="0"')}</div><div>${inp('swap','Swap (MB)','number')}</div></div>
+  <p class="ai-hint">0 = unbegrenzt. CPU 100 % entspricht einem Prozessorkern.</p>
+  <div class="grid2"><div>${inp('databases','Datenbanken','number',' min="0"')}</div><div>${inp('backups','Backups','number',' min="0"')}</div></div>
+  <p class="ai-sec">Node & Port</p>
+  <label>Node</label><select data-nf="node" id="nnode">${ND.map(n=>`<option value="${n.id}"${String(n.id)===String(f.node)?' selected':''}>${esc(n.name)} (${esc(n.fqdn||'')})</option>`).join('')}</select>
+  ${!ND.length?'<div class="banner">Es gibt noch keinen Node. Lege im Reiter „Nodes“ zuerst einen an.</div>':''}
+  ${N.al?N.al.err?`<p class="st err">${esc(N.al.err)}</p>`:N.al.length?`<label>Port (Allocation)</label><select data-nf="alloc">${N.al.map(a=>`<option value="${a.id}"${String(a.id)===String(f.alloc)?' selected':''}>${esc((a.alias||a.ip)+':'+a.port)}</option>`).join('')}</select>`:`<div class="banner">Auf diesem Node ist kein Port frei. Füge im Reiter „Nodes“ Ports hinzu.</div>`:ND.length?'<p class="st">Lade freie Ports …</p>':''}
+  <label class="chk"><input type="checkbox" data-nf="start"${f.start?' checked':''}>Nach der Installation automatisch starten</label>
+  <button class="btn pri" data-a="ad-create">${ico('check',18)}Server erstellen</button><p class="st" id="nst"></p>`;
+}
+async function adCreate(){
+  rdNew();const N=S.ad.nw,f=N.f,st=$('#nst',el);
+  const bad=!f.name.trim()?'Bitte einen Namen eingeben.':!f.user?'Bitte einen Besitzer wählen.':!f.egg?'Bitte ein Egg wählen.':!N.eg||N.eg.err?'Das Egg konnte nicht geladen werden.':!f.alloc?'Es ist kein freier Port gewählt.':'';
+  if(bad)return say(st,bad,1);
+  const n=k=>Math.max(k==='swap'?-1:0,Math.round(+f[k]||0));
+  say(st,'Erstelle Server …');
+  try{const r=att(await aapi('POST','/servers',{json:{name:f.name.trim(),description:f.description||'',user:+f.user,egg:+f.egg.split('/')[1],docker_image:f.image,startup:f.startup,environment:f.env,
+      limits:{memory:n('memory'),swap:n('swap'),disk:n('disk'),io:Math.min(1000,Math.max(10,n('io')||500)),cpu:n('cpu')},feature_limits:{databases:n('databases'),backups:n('backups'),allocations:Math.max(1,n('allocations'))},
+      allocation:{default:+f.alloc},start_on_completion:!!f.start},timeout:60000}));
+    toast('✓ Server „'+(r&&r.name||f.name)+'“ erstellt – Installation läuft');S.ad.nw=null;S.ad.tab='srv';S.list=null;adLoad('srv');loadList(true)}
+  catch(e){say(st,fe(e),1)}}
+/* --- Benutzer --- */
+async function adUser(id,after){
+  const u=id?(S.ad.d.usr||[]).find(x=>String(x.id)===String(id)):null;
+  if(u){const a=await menu(u.username,[{id:'ed',icon:'edit',label:'Bearbeiten'},{id:'del',icon:'trash',label:'Löschen',warn:1}],esc(u.email));
+    if(a==='del'){if(await yes('Benutzer löschen?','<b>'+esc(u.username)+'</b> wird gelöscht. Das geht nur, wenn ihm keine Server mehr gehören.','Löschen',true)&&await act(()=>aapi('DELETE','/users/'+u.id),'Benutzer gelöscht'))adLoad('usr',true);return}
+    if(a!=='ed')return}
+  const v=await ask({title:u?'Benutzer bearbeiten':'Neuer Benutzer',fields:[{id:'email',label:'E-Mail',type:'email',value:u?u.email:''},{id:'username',label:'Benutzername',value:u?u.username:''},{id:'first_name',label:'Vorname',value:u?u.first_name:''},{id:'last_name',label:'Nachname',value:u?u.last_name:''},
+    {id:'password',label:u?'Neues Passwort (leer = unverändert)':'Passwort (leer = Einladung per E-Mail)',type:'password'},{id:'root_admin',type:'check',label:'Administrator (darf das ganze Panel verwalten)',value:u?u.root_admin:false}],ok:u?'Speichern':'Erstellen',
+    check:v=>!/@/.test(v.email)?'Bitte eine gültige E-Mail eingeben.':!/^[a-z0-9_.-]{1,191}$/i.test(v.username.trim())?'Benutzername: nur Buchstaben, Zahlen, _ . -':!v.first_name.trim()||!v.last_name.trim()?'Vor- und Nachname sind Pflicht.':v.password&&v.password.length<8?'Das Passwort braucht mindestens 8 Zeichen.':''});
+  if(!v)return;const j={email:v.email.trim(),username:v.username.trim(),first_name:v.first_name.trim(),last_name:v.last_name.trim(),root_admin:!!v.root_admin};if(v.password)j.password=v.password;
+  const r=await act(()=>u?aapi('PATCH','/users/'+u.id,{json:j}):aapi('POST','/users',{json:j}),u?'Gespeichert':'Benutzer erstellt');
+  if(r){S.ad.d.usr=null;if(after){const U=await aall('/users').catch(()=>null);if(U)S.ad.d.usr=U;const nu=att(r);if(nu&&nu.id&&S.ad.nw)S.ad.nw.f.user=nu.id;drawNew()}else adLoad('usr',true)}}
+/* --- Nodes, Ports, Standorte --- */
+async function adNodeNew(){
+  const L=S.ad.d.loc||[];if(!L.length)return info('Erst einen Standort anlegen','Jeder Node gehört zu einem Standort (z. B. „zuhause“ oder „de-fra“). Lege unten bei „Standorte“ zuerst einen an.');
+  const v=await ask({title:'Neuer Node',desc:'Der Rechner, auf dem Wings läuft und die Server starten.',fields:[{id:'name',label:'Name',value:'Node 1'},{id:'location_id',type:'select',label:'Standort',value:L[0].id,opts:L.map(l=>[l.id,l.short])},{id:'fqdn',label:'Adresse (Domain oder IP des Rechners)',ph:'node1.beispiel.de'},
+    {id:'scheme',type:'select',label:'Verbindung',value:'https',opts:[['https','HTTPS (mit Zertifikat, empfohlen)'],['http','HTTP (nur im Heimnetz / ohne Domain)']]},{id:'memory',type:'number',label:'Arbeitsspeicher für Server (MB)',value:4096},{id:'disk',type:'number',label:'Speicherplatz für Server (MB)',value:51200},
+    {id:'daemon_listen',type:'number',label:'Wings-Port',value:8080},{id:'daemon_sftp',type:'number',label:'SFTP-Port',value:2022},{id:'behind_proxy',type:'check',label:'Hinter einem Proxy (z. B. Cloudflare)',value:false}],ok:'Erstellen',check:v=>v.name.trim()&&v.fqdn.trim()?'':'Name und Adresse sind Pflicht.'});
+  if(!v)return;
+  const r=await act(()=>aapi('POST','/nodes',{json:{name:v.name.trim(),location_id:+v.location_id,fqdn:v.fqdn.trim(),scheme:v.scheme,behind_proxy:!!v.behind_proxy,public:true,memory:+v.memory||0,memory_overallocate:0,disk:+v.disk||0,disk_overallocate:0,upload_size:100,daemon_listen:+v.daemon_listen||8080,daemon_sftp:+v.daemon_sftp||2022,daemon_base:'/var/lib/pterodactyl/volumes'}}),'Node erstellt');
+  if(r){const n=att(r);await adLoad('nod',true);if(n&&n.id)adNode(n.id)}}
+async function adNode(id){S.ad.nd={id,al:null,err:null};drawAdmin();
+  try{const[n,a]=await Promise.all([aapi('GET','/nodes/'+id,{q:{include:'location'}}),aall('/nodes/'+id+'/allocations')]);if(!S.ad||!S.ad.nd||S.ad.nd.id!==id)return;S.ad.nd.n=att(n);S.ad.nd.al=a}
+  catch(e){if(S.ad&&S.ad.nd)S.ad.nd.err=fe(e)}drawAdmin()}
+function drawNode(){
+  const D=S.ad.nd,n=D.n;let h=head(n?esc(n.name):'Node','ad-ndx');
+  if(D.err)h+=`<div class="banner er">${esc(D.err)}</div>`;
+  else if(!n)h+='<p class="empty">Lade …</p>';
+  else{const fr=D.al.filter(a=>!a.assigned).length;
+    h+=`<div class="kv">${kvr('Adresse',(n.scheme||'https')+'://'+n.fqdn+':'+n.daemon_listen,1)}${kvr('SFTP-Port',String(n.daemon_sftp))}${kvr('RAM',mb(n.memory)+(n.allocated_resources?' (vergeben: '+mb(n.allocated_resources.memory)+')':''))}${kvr('Speicher',mb(n.disk)+(n.allocated_resources?' (vergeben: '+mb(n.allocated_resources.disk)+')':''))}${kvr('Wartung',n.maintenance_mode?'an':'aus')}</div>
+    <div class="grid2"><button class="btn" data-a="ad-conf">${ico('file',18)}Wings-Konfiguration</button><button class="btn" data-a="ad-maint">${ico('sliders',18)}Wartung ${n.maintenance_mode?'aus':'an'}</button></div>
+    ${hd('Ports',D.al.length+' · '+fr+' frei',`<button class="iconbtn" data-a="ad-anew" aria-label="Ports hinzufügen">${ico('plus',18)}</button>`)}
+    <div class="list">${D.al.slice(0,300).map(a=>`<div class="item"><span class="tx"><b>${esc((a.alias||a.ip)+':'+a.port)}</b><small>${a.assigned?'vergeben':'frei'}${a.notes?' · '+esc(a.notes):''}</small></span>${a.assigned?'':`<button class="iconbtn" data-a="ad-adel" data-i="${a.id}" aria-label="Port löschen">${ico('trash',18)}</button>`}</div>`).join('')}</div>
+    ${D.al.length?'':'<p class="empty">Noch keine Ports. Jeder Server braucht mindestens einen.</p>'}
+    <button class="btn warn" data-a="ad-ndel">${ico('trash',18)}Node löschen</button>`}
+  el.innerHTML=h}
+async function adConf(){const D=S.ad.nd;try{const c=await aapi('GET','/nodes/'+D.id+'/configuration');const y=toYml(c);
+  await ask({title:'Wings-Konfiguration',desc:'Auf dem Node als <code>/etc/pterodactyl/config.yml</code> speichern und Wings neu starten (<code>systemctl restart wings</code>).',pre:`<div class="srcbox" style="max-height:300px">${esc(y)}</div>`,ok:'Kopieren',no:'Schließen'}).then(v=>{if(v)copyText(y)})}
+  catch(e){info('Nicht möglich',esc(fe(e)))}}
+function ports(s){const out=new Set();String(s||'').split(/[\s,;]+/).filter(Boolean).forEach(x=>{const m=/^(\d+)(?:-(\d+))?$/.exec(x);if(!m)throw Error('„'+x+'“ ist keine gültige Port-Angabe.');const a=+m[1],b=m[2]?+m[2]:a;if(a<1024||b>65535||b<a||b-a>1000)throw Error('Ports müssen zwischen 1024 und 65535 liegen (Bereich max. 1000).');for(let i=a;i<=b;i++)out.add(String(i))});return[...out]}
+async function adAllocNew(){const D=S.ad.nd,n=D.n;
+  const v=await ask({title:'Ports hinzufügen',desc:'Einzelne Ports oder Bereiche, z. B. <b>25565</b> oder <b>25565-25575, 19132</b>.',fields:[{id:'ip',label:'IP-Adresse des Nodes (0.0.0.0 = alle)',value:'0.0.0.0'},{id:'alias',label:'Anzeige-Name (optional, z. B. Domain)',value:''},{id:'ports',label:'Ports',ph:'25565-25570'}],ok:'Hinzufügen',
+    check:v=>{try{if(!ports(v.ports).length)return'Bitte Ports angeben.'}catch(e){return e.message}return''}});
+  if(!v)return;const j={ip:v.ip.trim()||'0.0.0.0',ports:ports(v.ports)};if(v.alias.trim())j.alias=v.alias.trim();
+  if(await act(()=>aapi('POST','/nodes/'+n.id+'/allocations',{json:j}),'Ports hinzugefügt'))adNode(n.id)}
+const GUIDE=`<div class="step"><b>1</b><div><p><b>Rechner besorgen</b>: ein Linux-Server (Ubuntu 22.04/24.04 oder Debian 12) – z. B. ein günstiger VPS, ein alter PC oder ein Raspberry Pi 4/5 (64 Bit). Mindestens 2 GB RAM, besser 4 GB+.</p></div></div>
+<div class="step"><b>2</b><div><p><b>Domain einrichten</b> (empfohlen): z. B. <code>panel.deinname.de</code> und <code>node.deinname.de</code> per DNS auf die IP des Rechners zeigen lassen. Zuhause ohne feste IP: Cloudflare Tunnel oder Tailscale.</p></div></div>
+<div class="step"><b>3</b><div><p><b>Panel + Wings installieren</b> – am einfachsten mit dem verbreiteten Community-Installer (per SSH als root):</p><div class="srcbox">bash &lt;(curl -s https://pterodactyl-installer.se)</div><p class="st">Erst „Panel“ (mit Let's Encrypt-Zertifikat), danach „Wings“ wählen. Offizielle Anleitung: pterodactyl.io → Panel/Wings Installation.</p></div></div>
+<div class="step"><b>4</b><div><p><b>Im Panel</b> (Browser) als Admin anmelden: Admin → Locations → Standort anlegen, Admin → Nodes → Node anlegen (oder hier in der App), dort „Configuration“ auf den Rechner kopieren und <code>systemctl enable --now wings</code>. Unter „Allocation“ Ports hinzufügen. Admin → Nests: Eggs (z. B. Minecraft) sind schon dabei.</p></div></div>
+<div class="step"><b>5</b><div><p><b>Schlüssel für diese App</b>: Admin → Application API → „Create New“ → bei allen Bereichen „Read &amp; Write“ → Schlüssel (ptla_…) kopieren. Außerdem im Konto unter API-Zugangsdaten einen Client-Schlüssel (ptlc_…). Beide in der App bei der Verbindung eintragen.</p></div></div>
+<div class="step"><b>6</b><div><p><b>Zugriff aus der App</b>: Wähle „Über Vermittler“ – oder erlaube dein Panel direkt, indem du in der Datei <code>/var/www/pterodactyl/.env</code> die Zeile <code>APP_CORS_ALLOWED_ORIGINS=*</code> ergänzt (neuere Panel-Versionen) und danach <code>php artisan config:cache</code> ausführst.</p></div></div>
+<p class="st">Kein Linux-Rechner zur Hand? Das <b>Handy-Panel</b> (Termux) lässt einfache Server direkt auf deinem Handy laufen – siehe „Handy-Panel einrichten“ bei „Neue Verbindung“.</p>`;
+Object.assign(H,{
+  'ad-open':()=>openAdmin(),
+  'ad-x':()=>{S.ad=null;S.scr='list';draw();loadList(true)},
+  'ad-tab':b=>{const A=S.ad;A.tab=b.dataset.t;A.nd=null;if(!A.d[A.tab]&&!A.err[A.tab])adLoad(A.tab);else drawAdmin()},
+  'ad-re':()=>adLoad(S.ad.tab),
+  'ad-srv':b=>adSrv(b.dataset.i),
+  'ad-new':()=>adNew(),
+  'ad-nx':()=>{S.ad.nw=null;drawAdmin()},
+  'ad-create':()=>adCreate(),
+  'ad-unew':()=>adUser(null),
+  'ad-unew2':()=>{rdNew();adUser(null,true)},
+  'ad-usr':b=>adUser(b.dataset.i),
+  'ad-nnew':()=>adNodeNew(),
+  'ad-node':b=>adNode(+b.dataset.i),
+  'ad-ndx':()=>{S.ad.nd=null;drawAdmin()},
+  'ad-conf':()=>adConf(),
+  'ad-maint':async()=>{const n=S.ad.nd.n;if(await act(()=>aapi('PATCH','/nodes/'+n.id,{json:{name:n.name,location_id:n.location_id,fqdn:n.fqdn,scheme:n.scheme,behind_proxy:n.behind_proxy,memory:n.memory,memory_overallocate:n.memory_overallocate,disk:n.disk,disk_overallocate:n.disk_overallocate,upload_size:n.upload_size,daemon_listen:n.daemon_listen,daemon_sftp:n.daemon_sftp,maintenance_mode:!n.maintenance_mode}}),n.maintenance_mode?'Wartung beendet':'Wartung an'))adNode(n.id)},
+  'ad-anew':()=>adAllocNew(),
+  'ad-adel':async b=>{const n=S.ad.nd.n;if(await act(()=>aapi('DELETE','/nodes/'+n.id+'/allocations/'+b.dataset.i),'Port gelöscht'))adNode(n.id)},
+  'ad-ndel':async()=>{const n=S.ad.nd.n;if(!await yes('Node löschen?','<b>'+esc(n.name)+'</b> wird aus dem Panel entfernt. Das geht nur, wenn keine Server mehr darauf liegen.','Löschen',true))return;if(await act(()=>aapi('DELETE','/nodes/'+n.id),'Node gelöscht')){S.ad.nd=null;adLoad('nod')}},
+  'ad-lnew':async()=>{const v=await ask({title:'Neuer Standort',fields:[{id:'short',label:'Kurzname',ph:'z. B. zuhause'},{id:'long',label:'Beschreibung (optional)'}],ok:'Anlegen',check:v=>v.short.trim()?'':'Bitte einen Kurznamen eingeben.'});
+    if(v&&await act(()=>aapi('POST','/locations',{json:{short:v.short.trim(),long:v.long.trim()}}),'Standort angelegt'))adLoad('nod',true)},
+  'ad-ldel':async b=>{if(await yes('Standort löschen?','Das geht nur, wenn ihm kein Node mehr zugeordnet ist.','Löschen',true)&&await act(()=>aapi('DELETE','/locations/'+b.dataset.i),'Standort gelöscht'))adLoad('nod',true)},
+  'ad-guide':()=>info('Pterodactyl selbst hosten',GUIDE)
+});
+
+/* ----- Handy-Panel (Termux) einrichten ----- */
+const hpUrl=()=>{try{return new URL('handy-panel.js',location.href).href}catch(e){return 'handy-panel.js'}};
+function drawHp(){
+  const h=S.hp||(S.hp={url:'http://127.0.0.1:8090',key:''});
+  const cmd1='pkg update -y && pkg install -y nodejs',cmd2='curl -fsSLo handy-panel.js '+hpUrl(),cmd3='termux-wake-lock; node handy-panel.js';
+  const cb=(c)=>`<div class="pxi" style="margin-top:8px"><span style="font-family:ui-monospace,Menlo,monospace">${esc(c)}</span><button class="btn" data-a="cpy" data-v="${esc(c)}">${ico('copy',16)}</button></div>`;
+  el.innerHTML=`${head('Handy-Panel einrichten','hp-x')}
+  <p class="st">Das Handy-Panel ist ein kleines Programm, das deine Server <b>direkt auf diesem Handy</b> laufen lässt. Die App steuert es wie ein Pterodactyl-Panel: mehrere Server anlegen, Konsole, Dateien, Start/Stopp.</p>
+  <div class="step"><b>1</b><div><p><b>Termux installieren</b> – am besten aus <b>F-Droid</b> (die Play-Store-Version ist veraltet).</p></div></div>
+  <div class="step"><b>2</b><div><p>Termux öffnen und nacheinander einfügen (lange tippen → Einfügen):</p>${cb(cmd1)}${cb(cmd2)}${cb(cmd3)}
+    <p class="st">Für <b>Minecraft</b> zusätzlich: <code>pkg install -y openjdk-21</code> · für Python: <code>pkg install -y python</code></p></div></div>
+  <div class="step"><b>3</b><div><p>Termux zeigt einen <b>Schlüssel</b> (beginnt mit tbp_). Kopiere ihn und füge ihn hier ein:</p>
+    <label>Schlüssel</label><input id="hpk" value="${esc(h.key)}" placeholder="tbp_…" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <details class="dt"><summary>Adresse ändern (nur wenn nötig)</summary><label>Adresse</label><input id="hpu" value="${esc(h.url)}" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"><p class="st">Standard ist <code>http://127.0.0.1:8090</code> (dieses Handy). Mit <code>--lan</code> gestartet, erreichst du das Panel auch von anderen Geräten im WLAN.</p></details>
+    <button class="btn pri" data-a="hp-go">${ico('check',18)}Verbinden</button><div id="hpr" class="diag"></div></div></div>
+  <details class="dt"><summary>Gut zu wissen</summary><p class="st">• Termux muss geöffnet bleiben (die Benachrichtigung „Termux“ zeigt, dass es läuft). <code>termux-wake-lock</code> verhindert, dass Android es im Standby beendet.<br>• Android 12+ beendet manchmal Hintergrund-Prozesse („phantom process killer“). Ab Android 14: Entwickleroptionen → „Einschränkungen für untergeordnete Prozesse deaktivieren“.<br>• Minecraft braucht viel Arbeitsspeicher. Gib dem Server 1–2 GB RAM und lade nicht zu viele Spieler ein.<br>• Spieler im selben WLAN verbinden sich mit der IP deines Handys und dem Port des Servers. Aus dem Internet geht das nur mit Portfreigabe/Tunnel (z. B. playit.gg).<br>• Der Schlüssel liegt in Termux unter <code>~/handy-panel/panel.json</code>. Neuer Schlüssel: <code>node handy-panel.js --neuer-schluessel</code></p></details>`;
+}
+async function hpGo(){
+  const h=S.hp,o=$('#hpr',el);h.key=($('#hpk',el).value||'').trim();h.url=normUrl(($('#hpu',el)||{}).value||h.url)||h.url;
+  if(!h.key){o.innerHTML=dg('er','Bitte den Schlüssel aus Termux einfügen.');return}
+  o.innerHTML=dg('..','Verbinde mit '+esc(hostOf(h.url))+' …');
+  const p={id:uid(),name:'Handy-Panel',url:h.url,key:h.key,akey:h.key,via:'direct',hp:1};
+  try{await api('GET','/',{p,timeout:8000})}
+  catch(e){o.innerHTML=dg('er','Keine Verbindung',(e&&e.status===401?'Der Schlüssel stimmt nicht. Kopiere ihn noch einmal aus Termux.':e&&e.net?'Läuft das Handy-Panel in Termux? (Schritt 2) Ist die Adresse richtig? Chrome fragt evtl., ob die App „Apps auf diesem Gerät“ erreichen darf – erlauben.':esc(fe(e))));return}
+  const old=DB.p.find(x=>x.hp&&x.url===h.url);if(old){Object.assign(old,{key:h.key,akey:h.key});DB.cur=old.id}else{DB.p.push(p);DB.cur=p.id}
+  save();S.hp=null;S.list=null;S.listErr=null;S.res={};S.scr='list';draw();await loadList();toast('✓ Handy-Panel verbunden');
+  if(S.list&&!S.list.length){openAdmin();adNew()}
+}
+Object.assign(H,{
+  'hp-open':()=>{readPf();S.scr='hp';draw();window.scrollTo(0,0)},
+  'hp-x':()=>{if(S.pf){S.scr='prof';drawProf()}else{S.scr=DB.p.length?'list':'prof';draw()}},
+  'hp-go':()=>hpGo(),
+  'ad-new0':()=>{openAdmin();adNew()}
+});
 /* ----- Start, Ereignisse, Registrierung ----- */
 function draw(){
   if(!el)return;
   if(S.scr==='prof')return drawProf();
   if(S.scr==='px')return drawPx();
+  if(S.scr==='admin'&&S.ad)return drawAdmin();
+  if(S.scr==='hp')return drawHp();
   if(S.scr==='server'&&S.srv){drawSrv();drawTabs();drawBody();return}
   S.scr='list';drawList();
 }
@@ -3023,6 +3290,7 @@ Object.assign(H,{
   /* Verbindung */
   'prof-x':()=>{if(DB.p.length){S.scr='list';draw()}else home()},
   eye:()=>{const i=$('#pk',el);if(i)i.type=i.type==='password'?'text':'password'},
+  eye2:()=>{const i=$('#pa',el);if(i)i.type=i.type==='password'?'text':'password'},
   'pf-save':()=>savePf(),
   'pf-del':async()=>{
     const f=S.pf;if(!f||!f.id)return;
@@ -3049,8 +3317,9 @@ Object.assign(H,{
   reload:()=>{S.res={};loadList()},
   pmenu:async()=>{
     const p=cur();if(!p)return;
-    const a=await menu('Verbindung',[{id:'ed',label:'Bearbeiten',icon:'edit'},{id:'dg',label:'Verbindung prüfen',icon:'check'},{id:'px',label:'Vermittler einrichten / ändern',icon:'cloud'},{id:'nw',label:'Neue Verbindung hinzufügen',icon:'plus'}],esc(p.name+' · '+hostOf(p.url)+' · '+(p.via==='px'?'über Vermittler':'direkt')));
-    if(a==='ed'){S.pf=Object.assign({},p);S.scr='prof';draw()}
+    const a=await menu('Verbindung',[{id:'ad',label:p.akey?'Panel verwalten (Admin)':'Admin-Schlüssel hinzufügen (Server erstellen …)',icon:'shield'},{id:'ed',label:'Bearbeiten',icon:'edit'},{id:'dg',label:'Verbindung prüfen',icon:'check'},{id:'px',label:'Vermittler einrichten / ändern',icon:'cloud'},{id:'nw',label:'Neue Verbindung hinzufügen',icon:'plus'}],esc(p.name+' · '+hostOf(p.url)+' · '+(p.via==='px'?'über Vermittler':'direkt')));
+    if(a==='ad')openAdmin();
+    else if(a==='ed'){S.pf=Object.assign({},p);S.scr='prof';draw()}
     else if(a==='dg')diagnose();
     else if(a==='px'){S.from='list';S.pf=null;S.scr='px';S.pxOk=null;draw()}
     else if(a==='nw')newProf();
@@ -3091,9 +3360,11 @@ function mount(root){
     const t=e.target;
     if(t.id==='sq'){S.q=t.value;const c=$('#sl',el);if(c)c.innerHTML=listRows()}
     else if(t.id==='fq'&&S.fd){S.fd.q=t.value;S.fd.lim=400;drawRows()}
+    else if(S.ad&&S.ad.nw&&t.dataset){if(t.dataset.nf)S.ad.nw.f[t.dataset.nf]=t.type==='checkbox'?t.checked:t.value;else if(t.dataset.ne)S.ad.nw.f.env[t.dataset.ne]=t.value}
   };
   el.onchange=e=>{
     const t=e.target;
+    if(S.ad&&S.ad.nw&&t.dataset&&t.dataset.nf){S.ad.nw.f[t.dataset.nf]=t.type==='checkbox'?t.checked:t.value;if(t.id==='negg')adEgg();else if(t.id==='nnode')adAllocs();return}
     if(t.id==='ps'){
       if(t.value==='+')return newProf();
       DB.cur=t.value;save();S.list=null;S.listErr=null;S.res={};drawList();loadList();
