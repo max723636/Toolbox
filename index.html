@@ -3391,7 +3391,7 @@ function unmount(){
   S={scr:'gone',ld:{},res:{},lines:[],buf:[],hist:[]};el=document.createElement('div');
 }
 function back(){if(S.scr==='server'&&S.tab==='fil'&&S.fd){if(S.fd.ed){eClose();return true}if(S.fd.dir&&S.fd.dir!=='/'){go(par(S.fd.dir));return true}}return false}
-tool({id:'srv',icon:'server',title:'Server',desc:'Pterodactyl-Panel: Konsole, Dateien, Backups',mount,unmount,back});
+tool({id:'srv',icon:'server',title:'Server',desc:'Pterodactyl & Handy-Panel: Server verwalten und erstellen',mount,unmount,back});
 })();
 
 /* ---------- AI Agents: lokale KI-Modelle mit eigenem Arbeitsbereich und Gedächtnis ---------- */
@@ -4264,12 +4264,12 @@ tool({id:'set',sys:1,icon:'sliders',title:'Einstellungen',desc:'Design, Textgrö
   <label>Akzentfarbe</label><div class="sws">${ACC.map((a,i)=>`<button class="sw${SET.ac===i?' on':''}" data-ac="${i}" style="background:${a[1]}" aria-label="${a[0]}"></button>`).join('')}</div>
   <label>Textgröße</label>${seg('z',[[.92,'Klein'],[1,'Normal'],[1.12,'Groß']])}
   <label>Notizen sortieren</label>${seg('so',[['new','Neueste zuerst'],['az','A–Z']])}
-  <label>Chat-Benachrichtigungen</label>${seg('nt',[['off','Aus'],['on','An']])}
+  <label>Benachrichtigungen (Chat & KI)</label>${seg('nt',[['off','Aus'],['on','An']])}
   <p class="st">Meldung bei neuen Chat-Nachrichten, solange die App im Hintergrund läuft. Ist die App ganz geschlossen, kommt nichts an (dafür bräuchte man einen Server).</p>
   <label>Standard-Verschlüsselung</label><select id="al">${Object.entries(ALGS).map(([k,v])=>`<option value="${k}"${k===SET.alg?' selected':''}>${v.n}</option>`).join('')}</select>
   <label>Daten</label><button id="rs" class="btn">${ico('trash',18)}Alle Daten zurücksetzen</button>
-  <p class="st">Löscht Notizen, eigene Stile, Server-Verbindungen (samt API-Schlüsseln), die Daten der AI Agents (Chats, Arbeitsbereiche, Wissen) und Einstellungen von diesem Gerät. Erstelle vorher ein Backup. Heruntergeladene KI-Modelle bleiben erhalten – die löschst du unter AI Agents → Modelle.</p>
-  <p class="foot">Toolbox · Version 1.5</p>`;
+  <p class="st">Löscht Notizen, eigene Stile, Server-Verbindungen (samt API-Schlüsseln), die Daten der AI Agents (Chats, Arbeitsbereiche, Wissen), Chat-Kontakte samt Verlauf und Einstellungen von diesem Gerät. Erstelle vorher ein Backup. Heruntergeladene KI-Modelle bleiben erhalten – die löschst du unter AI Agents → Modelle.</p>
+  <p class="foot">Toolbox · Version 1.6</p>`;
   el.onclick=e=>{const b=e.target.closest('button');if(!b)return;const g=b.closest('.seg');
     if(g){const k=g.dataset.k;SET[k]=k==='z'?+b.dataset.v:b.dataset.v;g.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));saveSet();if(k==='nt'&&SET.nt==='on')askNt(g)}
     else if(b.dataset.ac!=null){SET.ac=+b.dataset.ac;el.querySelectorAll('.sw').forEach(x=>x.classList.toggle('on',x===b));saveSet()}

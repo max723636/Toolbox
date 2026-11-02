@@ -1,7 +1,7 @@
 {
  "name": "Toolbox",
  "short_name": "Toolbox",
- "description": "QR-Codes, Verschlüsselung, Schriftstile, Notizen, Chat, Video, Server-Verwaltung und lokale KI-Agenten",
+ "description": "QR-Codes, Verschlüsselung, Schriftstile, Notizen, Chat mit Fotos und Sprachnachrichten, Video, Server-Verwaltung mit Handy-Panel und lokale KI-Agenten",
  "lang": "de",
  "start_url": "./",
  "scope": "./",
