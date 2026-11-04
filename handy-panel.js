@@ -6,20 +6,32 @@
    wie Pterodactyl. Die Toolbox-App steuert es wie ein echtes Panel:
    mehrere Server anlegen, starten/stoppen, Live-Konsole, Dateien.
 
-   Start in Termux:   node handy-panel.js
+   Start in Termux:   node handy-panel.js      (danach auch kurz: hp)
    Optionen:          --port 8090      anderer Port
                       --lan            auch im WLAN erreichbar (Vorsicht!)
                       --dir <ordner>   anderer Datenordner
                       --neuer-schluessel   neuen Zugangsschlüssel erzeugen
+   Befehle:           hp status               welche Server laufen
+                      hp konsole <server>     Live-Konsole eines laufenden Servers
+                                              wieder aufnehmen (Strg+C trennt nur)
+                      hp start|stop|restart|kill <server>
+                      hp stopp-alle           alle Server stoppen
+                      hp hilfe
+   Die Server laufen weiter, auch wenn das Panel beendet wird. Beim nächsten
+   Start übernimmt das Panel sie wieder.
    Keine zusätzlichen Pakete nötig – nur Node.js (pkg install nodejs).
    Für Minecraft zusätzlich Java: pkg install openjdk-21
    ===================================================================== */
 'use strict';
 const http = require('http'), fs = require('fs'), fsp = fs.promises, path = require('path'), crypto = require('crypto'), os = require('os');
 const { spawn, execFile } = require('child_process');
+const { StringDecoder } = require('string_decoder');
 
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const ARGS = process.argv.slice(2);
+const WITHVAL = ['--port', '--dir'];
+const POS = ARGS.filter((x, i) => !x.startsWith('--') && !WITHVAL.includes(ARGS[i - 1])); // Wörter, die keine Optionen sind
+const CMD = POS[0] ? POS[0].toLowerCase() : null; // Termux-Befehl statt Panel-Start
 const opt = n => { const i = ARGS.indexOf('--' + n); return i < 0 ? null : (ARGS[i + 1] && !ARGS[i + 1].startsWith('--') ? ARGS[i + 1] : true) };
 const PORT = +(opt('port') || process.env.HP_PORT || 8090);
 const HOST = opt('lan') ? '0.0.0.0' : '127.0.0.1';
@@ -34,7 +46,7 @@ fs.mkdirSync(SRV, { recursive: true });
 let C;
 try { C = JSON.parse(fs.readFileSync(CFG, 'utf8')) } catch (e) { C = null }
 if (!C) C = { key: '', servers: [], allocs: [], seq: { server: 0, alloc: 0 }, user: null };
-if (!C.key || opt('neuer-schluessel')) C.key = 'tbp_' + rid(20);
+if (!C.key || (opt('neuer-schluessel') && !CMD)) C.key = 'tbp_' + rid(20);
 if (!C.user) C.user = { id: 1, uuid: crypto.randomUUID(), username: 'handy', email: 'handy@localhost', first_name: 'Handy', last_name: 'Panel', language: 'de', root_admin: true, '2fa': false, created_at: now(), updated_at: now() };
 if (!C.allocs.length) { for (const p of [25565, 25566, 25567, 25568, 25569, 25570, 19132, 3000, 3001, 3002, 8081, 8082]) C.allocs.push({ id: ++C.seq.alloc, ip: '0.0.0.0', alias: null, port: p, notes: null }) }
 let saveT = null;
@@ -43,7 +55,7 @@ function save(now_) {
   const w = () => { const tmp = CFG + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(C, null, 1)); fs.renameSync(tmp, CFG) };
   if (now_) w(); else saveT = setTimeout(w, 200);
 }
-save(true);
+if (!CMD || !fs.existsSync(CFG)) save(true);
 
 /* ---------- Vorlagen (Eggs) ---------- */
 const MC_VARS = (dflt) => [
@@ -69,7 +81,7 @@ const eggAttr = (id, inclVars) => {
 
 /* ---------- Laufzeit-Zustand je Server ---------- */
 const RT = new Map(); // uuid -> {proc, state, log[], ws:Set, started, cpu, stats}
-const rt = s => { let r = RT.get(s.uuid); if (!r) { r = { proc: null, state: 'offline', log: [], ws: new Set(), started: 0, last: null, disk: 0, diskT: 0, mem: 0, cpu: 0 }; RT.set(s.uuid, r) } return r };
+const rt = s => { let r = RT.get(s.uuid); if (!r) { r = { pid: null, state: 'offline', log: [], ws: new Set(), started: 0, last: null, disk: 0, diskT: 0, mem: 0, cpu: 0 }; RT.set(s.uuid, r) } return r };
 const dirOf = s => path.join(SRV, s.uuid);
 const findSrv = id => C.servers.find(s => s.identifier === id || s.uuid === id || String(s.id) === String(id));
 const allocOf = s => C.allocs.find(a => a.id === s.allocation);
@@ -102,48 +114,91 @@ async function prepare(s) {
   }
   return true;
 }
-async function start(s) {
-  const r = rt(s);
-  if (r.proc || s.suspended || s.status) return;
+/* Jeder Server läuft als eigenständiger Prozess (eigene Sitzung). Ausgaben landen in
+   .hp/console.log, Eingaben kommen über die Pipe .hp/stdin. Darum überlebt der Server,
+   wenn das Panel beendet wird, und lässt sich später wieder aufnehmen. */
+const hpd = s => path.join(dirOf(s), '.hp');
+const ctl = s => ({ fifo: path.join(hpd(s), 'stdin'), log: path.join(hpd(s), 'console.log'), ex: path.join(hpd(s), 'exit') });
+const mkfifo = f => new Promise((res, rej) => execFile('mkfifo', ['-m', '600', f], e => e ? rej(Error('„mkfifo“ fehlt – in Termux: pkg install coreutils')) : res()));
+const alive = pid => { // läuft der Prozess noch? (Zombies zählen als beendet)
+  if (!pid) return false; try { process.kill(pid, 0) } catch (e) { if (e.code !== 'EPERM') return false }
+  try { const st = fs.readFileSync('/proc/' + pid + '/stat', 'utf8'); return !/^[ZX]$/.test(st.slice(st.lastIndexOf(')') + 2, st.lastIndexOf(')') + 3)) } catch (e) { return true }
+};
+const owned = (s, pid) => { try { return fs.readlinkSync('/proc/' + pid + '/cwd') === fs.realpathSync(dirOf(s)) } catch (e) { return alive(pid) } };
+const running = s => { const r = rt(s); return !!(r.pid && alive(r.pid)) };
+async function start(s, opts) {
+  opts = opts || {}; const r = rt(s);
+  if (running(s) || s.suspended || s.status) return;
   setState(s, 'starting'); out(s, 'Server wird gestartet …', 'daemon');
   try { if (!await prepare(s)) { setState(s, 'offline'); return } } catch (e) { out(s, 'Vorbereitung fehlgeschlagen: ' + e.message, 'error'); setState(s, 'offline'); return }
+  const F = ctl(s);
+  try {
+    await fsp.mkdir(hpd(s), { recursive: true });
+    try { if ((await fsp.stat(F.log)).size > 10 * 1048576) await fsp.rename(F.log, F.log.replace(/\.log$/, '.alt.log')) } catch (e) { }
+    try { await fsp.unlink(F.ex) } catch (e) { }
+    let ok = false; try { ok = fs.statSync(F.fifo).isFIFO() } catch (e) { } if (!ok) { try { fs.unlinkSync(F.fifo) } catch (e) { } await mkfifo(F.fifo) }
+  } catch (e) { out(s, 'Start nicht möglich: ' + e.message, 'error'); setState(s, 'offline'); return }
   const cmd = fill(s, s.startup || (EGGS[s.egg] || {}).startup || '');
   out(s, '$ ' + cmd, 'daemon');
-  const p = spawn('sh', ['-c', cmd], { cwd: dirOf(s), env: Object.assign({}, process.env, envOf(s)), detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
-  r.proc = p; r.started = Date.now(); r.cpuT = null; s.wasRunning = true; save();
-  const e = EGGS[s.egg];
-  let buf = { o: '', e: '' };
-  const feed = (k, ch) => { buf[k] += ch.toString('utf8'); let i; while ((i = buf[k].search(/\r?\n/)) >= 0) { const line = buf[k].slice(0, i); buf[k] = buf[k].slice(i + (buf[k][i] === '\r' ? 2 : 1)); out(s, line); if (r.state === 'starting' && e && e.done && e.done.test(line)) setState(s, 'running') } };
-  p.stdout.on('data', ch => feed('o', ch)); p.stderr.on('data', ch => feed('e', ch));
-  p.stdin.on('error', () => { });
+  let off = 0; try { off = fs.statSync(F.log).size } catch (e) { }
+  const p = spawn('sh', ['-c', 'exec <>"$HP_FIFO" >>"$HP_LOG" 2>&1; eval "$HP_CMD"; echo $? > "$HP_EXIT"'], { cwd: dirOf(s), env: Object.assign({}, process.env, envOf(s), { HP_FIFO: F.fifo, HP_LOG: F.log, HP_EXIT: F.ex, HP_CMD: cmd }), detached: true, stdio: 'ignore' });
   p.on('error', err => out(s, 'Start fehlgeschlagen: ' + err.message, 'error'));
-  p.on('exit', (code, sig) => {
-    if (buf.o) out(s, buf.o); if (buf.e) out(s, buf.e);
-    r.proc = null; clearTimeout(r.killT);
-    const was = r.state; setState(s, 'offline');
-    out(s, 'Server beendet' + (code != null ? ' (Code ' + code + ')' : sig ? ' (' + sig + ')' : '') + '.', 'daemon');
-    if (code === 127) out(s, 'Ein Befehl wurde nicht gefunden. Fehlt ein Paket? Minecraft: pkg install openjdk-21 · Python: pkg install python · Node.js: pkg install nodejs', 'error');
-    if (r.restart) { r.restart = false; setTimeout(() => start(s), 1000) }
-    else if (was !== 'stopping' && was !== 'offline') { s.wasRunning = false; save() }
-  });
-  if (!(e && e.done)) setTimeout(() => { if (r.proc === p && r.state === 'starting') setState(s, 'running') }, 1500);
+  p.unref();
+  s.pid = p.pid; s.started = Date.now(); s.wasRunning = true; save(opts.now);
+  if (!opts.detach) follow(s, off, true);
 }
+// Ausgaben eines (auch schon laufenden) Servers mitlesen und auf sein Ende achten
+function follow(s, off, fresh) {
+  const r = rt(s); r.pid = s.pid; r.started = s.started || Date.now(); r.off = off; r.part = ''; r.skip1 = off > 0 && !fresh; r.dec = new StringDecoder('utf8'); r.cpuT = null;
+  setState(s, fresh ? 'starting' : 'running');
+  const e = EGGS[s.egg];
+  if (fresh && !(e && e.done)) setTimeout(() => { if (r.pid === s.pid && r.state === 'starting') setState(s, 'running') }, 1500);
+  clearInterval(r.iv); r.iv = setInterval(() => pump(s), 400); pump(s);
+}
+function pump(s) {
+  const r = rt(s), F = ctl(s), e = EGGS[s.egg];
+  try {
+    const st = fs.statSync(F.log); if (st.size < r.off) r.off = 0;
+    while (st.size > r.off) {
+      const n = Math.min(st.size - r.off, 1048576), b = Buffer.alloc(n), fd = fs.openSync(F.log, 'r');
+      try { fs.readSync(fd, b, 0, n, r.off) } finally { fs.closeSync(fd) }
+      r.off += n; r.part += r.dec.write(b);
+      let i; while ((i = r.part.indexOf('\n')) >= 0) {
+        const line = r.part.slice(0, i).replace(/\r$/, ''); r.part = r.part.slice(i + 1);
+        if (r.skip1) { r.skip1 = false; continue }
+        out(s, line); if (r.state === 'starting' && e && e.done && e.done.test(line)) setState(s, 'running');
+      }
+    }
+  } catch (x) { }
+  if (r.pid && !alive(r.pid)) gone(s);
+}
+function gone(s) {
+  const r = rt(s); clearInterval(r.iv); r.iv = null; clearTimeout(r.killT);
+  let code = null; try { code = parseInt(fs.readFileSync(ctl(s).ex, 'utf8'), 10) } catch (e) { }
+  if (r.part) { out(s, r.part); r.part = '' }
+  r.pid = null; s.pid = null;
+  const was = r.state; setState(s, 'offline');
+  out(s, 'Server beendet' + (code != null && !isNaN(code) ? ' (Code ' + code + ')' : '') + '.', 'daemon');
+  if (code === 127) out(s, 'Ein Befehl wurde nicht gefunden. Fehlt ein Paket? Minecraft: pkg install openjdk-21 · Python: pkg install python · Node.js: pkg install nodejs', 'error');
+  if (r.restart) { r.restart = false; save(); setTimeout(() => start(s), 1000) }
+  else { if (was !== 'stopping') s.wasRunning = false; save() }
+}
+const grp = (pid, sig) => { try { process.kill(-pid, sig) } catch (e) { try { process.kill(pid, sig) } catch (x) { } } };
 function stop(s, kill) {
-  const r = rt(s), p = r.proc; if (!p) { setState(s, 'offline'); return }
-  const grp = sig => { try { process.kill(-p.pid, sig) } catch (e) { try { p.kill(sig) } catch (x) { } } };
-  if (kill) { out(s, 'Prozess wird hart beendet (Kill).', 'daemon'); grp('SIGKILL'); return }
+  const r = rt(s), pid = r.pid; if (!pid || !alive(pid)) { if (pid) gone(s); else setState(s, 'offline'); return }
+  if (kill) { out(s, 'Prozess wird hart beendet (Kill).', 'daemon'); grp(pid, 'SIGKILL'); return }
   setState(s, 'stopping'); out(s, 'Server wird gestoppt …', 'daemon'); s.wasRunning = false; save();
   const e = EGGS[s.egg];
-  if (e && e.stop && e.stop !== '^C') { try { p.stdin.write(e.stop + '\n') } catch (x) { grp('SIGINT') } } else grp('SIGINT');
-  clearTimeout(r.killT); r.killT = setTimeout(() => { if (r.proc === p) { out(s, 'Stoppt nicht von selbst – wird beendet.', 'daemon'); grp('SIGKILL') } }, 30000);
+  if (!(e && e.stop && e.stop !== '^C' && command(s, e.stop))) grp(pid, 'SIGINT');
+  clearTimeout(r.killT); r.killT = setTimeout(() => { if (r.pid === pid && alive(pid)) { out(s, 'Stoppt nicht von selbst – wird beendet.', 'daemon'); grp(pid, 'SIGKILL') } }, 30000);
 }
 function power(s, sig) {
   if (sig === 'start') start(s);
   else if (sig === 'stop') stop(s);
   else if (sig === 'kill') stop(s, true);
-  else if (sig === 'restart') { const r = rt(s); if (r.proc) { r.restart = true; stop(s) } else start(s) }
+  else if (sig === 'restart') { const r = rt(s); if (running(s)) { r.restart = true; stop(s) } else start(s) }
 }
-function command(s, cmd) { const r = rt(s); if (!r.proc) return false; try { r.proc.stdin.write(String(cmd) + '\n'); return true } catch (e) { return false } }
+function command(s, cmd) { const r = rt(s); if (!r.pid || !alive(r.pid)) return false; try { const fd = fs.openSync(ctl(s).fifo, 'r+'); try { fs.writeSync(fd, String(cmd) + '\n') } finally { fs.closeSync(fd) } return true } catch (e) { return false } }
 
 /* ---------- Ressourcen (aus /proc, eigene Prozesse) ---------- */
 const TICK = 100, PAGE = 4096;
@@ -162,11 +217,11 @@ function procTree(root) {
 async function dirSize(d) { let n = 0; const walk = async p => { let l; try { l = await fsp.readdir(p, { withFileTypes: true }) } catch (e) { return } for (const x of l) { const f = path.join(p, x.name); try { if (x.isDirectory()) await walk(f); else n += (await fsp.lstat(f)).size } catch (e) { } } }; await walk(d); return n }
 function stats(s) {
   const r = rt(s);
-  if (r.proc) { const t = procTree(r.proc.pid); if (t) { const nowT = Date.now(); if (r.cpuT) r.cpu = Math.max(0, (t.ut - r.cpuU) / TICK / ((nowT - r.cpuT) / 1000) * 100); r.cpuT = nowT; r.cpuU = t.ut; r.mem = t.rss } } else { r.cpu = 0; r.mem = 0; r.cpuT = null }
+  if (r.pid) { const t = procTree(r.pid); if (t) { const nowT = Date.now(); if (r.cpuT) r.cpu = Math.max(0, (t.ut - r.cpuU) / TICK / ((nowT - r.cpuT) / 1000) * 100); r.cpuT = nowT; r.cpuU = t.ut; r.mem = t.rss } } else { r.cpu = 0; r.mem = 0; r.cpuT = null }
   if (Date.now() - r.diskT > 60000) { r.diskT = Date.now(); dirSize(dirOf(s)).then(n => r.disk = n) }
-  return { memory_bytes: r.mem, memory_limit_bytes: (+s.limits.memory || 0) * 1048576, cpu_absolute: +r.cpu.toFixed(2), network: { rx_bytes: 0, tx_bytes: 0 }, state: r.state, disk_bytes: r.disk, uptime: r.proc ? Date.now() - r.started : 0 };
+  return { memory_bytes: r.mem, memory_limit_bytes: (+s.limits.memory || 0) * 1048576, cpu_absolute: +r.cpu.toFixed(2), network: { rx_bytes: 0, tx_bytes: 0 }, state: r.state, disk_bytes: r.disk, uptime: r.pid ? Date.now() - r.started : 0 };
 }
-setInterval(() => { for (const s of C.servers) { const r = RT.get(s.uuid); if (r && r.ws.size) emit(s, 'stats', [JSON.stringify(stats(s))]) } }, 2000);
+setInterval(() => { for (const s of C.servers) { const r = RT.get(s.uuid); if (r && r.ws.size) emit(s, 'stats', [JSON.stringify(stats(s))]) } }, 2000).unref();
 
 /* ---------- Installation ---------- */
 async function getJSON(u) { const r = await fetch(u, { headers: { 'User-Agent': 'toolbox-handy-panel/' + VERSION } }); if (!r.ok) throw Error(u + ' → HTTP ' + r.status); return r.json() }
@@ -225,7 +280,7 @@ const INST = {
   async shell(s, d, env, log) { const f = path.join(d, 'start.sh'); if (!fs.existsSync(f)) { await fsp.writeFile(f, '#!/bin/sh\n# Hier deinen Startbefehl eintragen\necho "Hallo vom Handy-Panel! Port: $SERVER_PORT"\nwhile read line; do echo "Eingabe: $line"; done\n'); log('start.sh angelegt – bearbeite sie unter „Dateien“.') } }
 };
 async function install(s, re) {
-  const r = rt(s); if (r.proc) { stop(s, true); await sleep(800) }
+  if (running(s)) { stop(s, true); await sleep(800) }
   s.status = 'installing'; save(); emit(s, 'install started', []);
   const d = dirOf(s); await fsp.mkdir(d, { recursive: true });
   const log = l => out(s, l, 'install');
@@ -278,7 +333,7 @@ function safe(s, p) { const root = dirOf(s), f = path.resolve(root, '.' + path.p
 const TOK = new Map(); // Kurzzeit-Token: Konsole, Download, Upload
 const token = (data, ms) => { const t = rid(24); TOK.set(t, Object.assign({ exp: Date.now() + ms }, data)); return t };
 const useTok = (t, kind) => { const x = TOK.get(String(t || '')); if (!x || x.kind !== kind || x.exp < Date.now()) return null; return x };
-setInterval(() => { const n = Date.now(); for (const [k, v] of TOK) if (v.exp < n) TOK.delete(k) }, 60000);
+setInterval(() => { const n = Date.now(); for (const [k, v] of TOK) if (v.exp < n) TOK.delete(k) }, 60000).unref();
 const selfUrl = req => 'http://' + (req.headers.host || ('127.0.0.1:' + PORT));
 const sh = (cmd, args, cwd) => new Promise((res, rej) => execFile(cmd, args, { cwd, maxBuffer: 4 * 1048576 }, (e, so, se) => e ? rej(new HErr(e.code === 'ENOENT' ? 501 : 500, e.code === 'ENOENT' ? 'Das Programm „' + cmd + '“ fehlt. In Termux: pkg install ' + (cmd === 'unzip' ? 'unzip' : 'tar') : String(se || e.message).slice(0, 300))) : res(so)));
 
@@ -308,7 +363,7 @@ async function client(req, res, p, q) {
 async function uniqueCopy(f) { const d = path.dirname(f), ext = path.extname(f), b = path.basename(f, ext); for (let i = 0; i < 100; i++) { const n = path.join(d, b + ' copy' + (i ? ' ' + i : '') + ext); if (!fs.existsSync(n)) return n } throw new HErr(409, 'Zu viele Kopien.') }
 async function files(req, res, s, sub, q) {
   const M = req.method, root = dirOf(s); await fsp.mkdir(root, { recursive: true });
-  if (sub === '/list') { const d = safe(s, q.get('directory') || '/'); let l; try { l = await fsp.readdir(d) } catch (e) { throw new HErr(404, 'Ordner nicht gefunden.') } const out = []; for (const n of l) { try { out.push(fileAttr(n, await fsp.lstat(path.join(d, n)))) } catch (e) { } } return send(res, 200, list(out)) }
+  if (sub === '/list') { const d = safe(s, q.get('directory') || '/'); let l; try { l = await fsp.readdir(d) } catch (e) { throw new HErr(404, 'Ordner nicht gefunden.') } const out = []; for (const n of l) { if (d === root && n === '.hp') continue; try { out.push(fileAttr(n, await fsp.lstat(path.join(d, n)))) } catch (e) { } } return send(res, 200, list(out)) }
   if (sub === '/contents') { const f = safe(s, q.get('file')); let st; try { st = await fsp.stat(f) } catch (e) { throw new HErr(404, 'Datei nicht gefunden.') } if (st.isDirectory()) throw new HErr(400, 'Das ist ein Ordner.'); if (st.size > 16 * 1048576) throw new HErr(400, 'Datei zu groß.'); res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' }); return fs.createReadStream(f).pipe(res) }
   if (sub === '/download') { const f = safe(s, q.get('file')); if (!fs.existsSync(f)) throw new HErr(404, 'Datei nicht gefunden.'); return send(res, 200, { object: 'signed_url', attributes: { url: selfUrl(req) + '/download/file?token=' + token({ kind: 'dl', file: f }, 900000) } }) }
   if (sub === '/upload') return send(res, 200, { object: 'signed_url', attributes: { url: selfUrl(req) + '/upload/file?token=' + token({ kind: 'up', uuid: s.uuid }, 900000) } });
@@ -462,17 +517,118 @@ const srv = http.createServer(async (req, res) => {
   }
 });
 srv.on('upgrade', (req, sock) => wsAccept(req, sock));
-srv.on('error', e => { console.error(e.code === 'EADDRINUSE' ? '\nDer Port ' + PORT + ' ist schon belegt – läuft das Handy-Panel schon? Sonst: node handy-panel.js --port 8091\n' : e.message); process.exit(1) });
-srv.listen(PORT, HOST, () => {
-  const line = '─'.repeat(54);
-  console.log('\n' + line + '\n  Toolbox Handy-Panel ' + VERSION + ' läuft\n' + line);
-  console.log('  Adresse:   http://' + (HOST === '0.0.0.0' ? '<IP-dieses-Handys>' : '127.0.0.1') + ':' + PORT);
-  console.log('  Schlüssel: ' + C.key);
-  console.log('  Daten:     ' + BASE);
-  console.log(line + '\n  In der Toolbox-App: Server → Neue Verbindung → „Handy-Panel“\n  und diesen Schlüssel einfügen.');
-  console.log('  Tipp: „termux-wake-lock“ ausführen, damit Android die Server\n  im Hintergrund nicht beendet. Beenden: Strg+C\n' + line + '\n');
-  if (HOST === '0.0.0.0') console.log('  ACHTUNG: --lan ist an. Jeder im WLAN mit dem Schlüssel kann zugreifen.\n');
-  for (const s of C.servers) { if (s.status === 'installing') { s.status = 'install_failed'; save() } else if (s.wasRunning && !s.suspended && !s.status) start(s) }
-});
-const bye = () => { console.log('\nBeende Server …'); for (const s of C.servers) { const r = RT.get(s.uuid); if (r && r.proc) { try { process.kill(-r.proc.pid, 'SIGTERM') } catch (e) { } } } save(true); setTimeout(() => process.exit(0), 1500) };
-process.on('SIGINT', bye); process.on('SIGTERM', bye);
+srv.on('error', e => { console.error(e.code === 'EADDRINUSE' ? '\nDer Port ' + PORT + ' ist schon belegt – läuft das Handy-Panel schon? Dann reicht: hp status / hp konsole <server>\nSonst anderen Port wählen: node handy-panel.js --port 8091\n' : e.message); process.exit(1) });
+
+/* ---------- Befehl „hp“ in Termux einrichten ---------- */
+function installHp() {
+  const pre = process.env.PREFIX; if (!pre || !fs.existsSync(path.join(pre, 'bin'))) return false;
+  const f = path.join(pre, 'bin', 'hp'), body = '#!' + path.join(pre, 'bin', 'sh') + '\n# Toolbox Handy-Panel\nexec node ' + JSON.stringify(path.resolve(__filename)) + ' "$@"\n';
+  try { if (fs.existsSync(f) && fs.readFileSync(f, 'utf8') === body) return true; fs.writeFileSync(f, body); fs.chmodSync(f, 0o755); return 'neu' } catch (e) { return false }
+}
+
+/* ---------- Panel starten ---------- */
+function panel() {
+  srv.listen(PORT, HOST, () => {
+    const line = '─'.repeat(56), hp = installHp();
+    console.log('\n' + line + '\n  Toolbox Handy-Panel ' + VERSION + ' läuft\n' + line);
+    console.log('  Adresse:   http://' + (HOST === '0.0.0.0' ? '<IP-dieses-Handys>' : '127.0.0.1') + ':' + PORT);
+    console.log('  Schlüssel: ' + C.key);
+    console.log('  Daten:     ' + BASE);
+    console.log(line + '\n  In der Toolbox-App: Server → Neue Verbindung → „Handy-Panel“\n  und diesen Schlüssel einfügen.');
+    console.log('  Tipp: „termux-wake-lock“ ausführen, damit Android die Server\n  im Hintergrund nicht beendet.');
+    console.log('  Strg+C beendet nur das Panel – deine Server laufen weiter.');
+    if (hp) console.log('  Befehle: hp status · hp konsole <server> · hp hilfe' + (hp === 'neu' ? '   (Befehl „hp“ wurde eingerichtet)' : ''));
+    console.log(line + '\n');
+    if (HOST === '0.0.0.0') console.log('  ACHTUNG: --lan ist an. Jeder im WLAN mit dem Schlüssel kann zugreifen.\n');
+    for (const s of C.servers) {
+      if (s.status === 'installing') { s.status = 'install_failed'; save(); continue }
+      if (s.pid && alive(s.pid) && owned(s, s.pid)) {
+        let off = 0; try { off = Math.max(0, fs.statSync(ctl(s).log).size - 65536) } catch (e) { }
+        follow(s, off, false); out(s, 'Handy-Panel hat den laufenden Server wieder übernommen.', 'daemon');
+        console.log('  ↺ Übernommen: ' + s.name + ' (läuft weiter)');
+      } else { if (s.pid) { s.pid = null; save() } if (s.wasRunning && !s.suspended && !s.status) { console.log('  ▶ Starte wieder: ' + s.name); start(s) } }
+    }
+  });
+  const bye = () => {
+    const n = C.servers.filter(running).length;
+    console.log('\nHandy-Panel beendet.' + (n ? ' ' + n + ' Server läuft/laufen weiter.\nWieder aufnehmen: hp konsole <server>  ·  Panel neu starten: hp  ·  Alle stoppen: hp stopp-alle' : ''));
+    save(true); process.exit(0);
+  };
+  process.on('SIGINT', bye); process.on('SIGTERM', bye); process.on('SIGHUP', bye);
+}
+
+/* ---------- Termux-Befehle ---------- */
+async function panelUp() { try { const r = await fetch('http://127.0.0.1:' + PORT + '/', { signal: AbortSignal.timeout(1500) }); return r.ok } catch (e) { return false } }
+async function viaPanel(method, p, j) { const r = await fetch('http://127.0.0.1:' + PORT + '/api/' + p, { method, headers: { Authorization: 'Bearer ' + C.key, 'Content-Type': 'application/json' }, body: j ? JSON.stringify(j) : undefined }); if (!r.ok) { let m = 'HTTP ' + r.status; try { m = (await r.json()).errors[0].detail } catch (e) { } throw Error(m) } }
+function pick(q) {
+  if (!q) return null; const l = String(q).toLowerCase(), S = C.servers;
+  return S.find(s => s.identifier === l) || S.find(s => s.name.toLowerCase() === l) || (/^\d+$/.test(l) && S[+l - 1]) || S.filter(s => s.name.toLowerCase().includes(l)).sort((a, b) => a.name.length - b.name.length)[0] || null;
+}
+const reload = () => { try { C = JSON.parse(fs.readFileSync(CFG, 'utf8')) } catch (e) { } };
+const HELP = `Toolbox Handy-Panel – Befehle
+  hp                       Panel starten (für die Toolbox-App)
+  hp status                alle Server und ob sie laufen
+  hp konsole <server>      Live-Konsole wieder aufnehmen, Befehle eintippen
+                           (Strg+C trennt nur – der Server läuft weiter)
+  hp start <server>        Server starten
+  hp stop <server>         Server sauber stoppen
+  hp restart <server>      neu starten
+  hp kill <server>         hart beenden
+  hp stopp-alle            alle laufenden Server stoppen
+  hp schluessel            Zugangsschlüssel für die App anzeigen
+<server> = Name (oder ein Teil davon), Server-ID oder Nummer aus „hp status“.
+Ohne „hp“: node ${path.basename(__filename)} <befehl>`;
+async function cli(cmd, a) {
+  const say = t => console.log(t), up = await panelUp();
+  if (cmd === 'hilfe' || cmd === 'help' || cmd === '-h') return say(HELP);
+  if (cmd === 'schluessel' || cmd === 'schlüssel' || cmd === 'key') return say(C.key);
+  if (cmd === 'status' || cmd === 'liste' || cmd === 'list') {
+    say('Handy-Panel: ' + (up ? 'läuft (http://127.0.0.1:' + PORT + ')' : 'aus – starten mit: hp'));
+    if (!C.servers.length) return say('Noch keine Server. Lege sie in der Toolbox-App an.');
+    C.servers.forEach((s, i) => { const on = s.pid && alive(s.pid), a2 = allocOf(s); say(`  ${i + 1}. ${on ? '● läuft ' : '○ aus   '} ${s.name}  [${s.identifier}]${a2 ? '  Port ' + a2.port : ''}${s.suspended ? '  (gesperrt)' : s.status ? '  (' + s.status + ')' : ''}`) });
+    return say('\nKonsole wieder aufnehmen: hp konsole <Name oder Nummer>');
+  }
+  if (cmd === 'stopp-alle' || cmd === 'stop-all') {
+    const l = C.servers.filter(s => s.pid && alive(s.pid)); if (!l.length) return say('Es läuft kein Server.');
+    for (const s of l) await cli('stop', [s.identifier]); return;
+  }
+  const s = pick(a.join(' '));
+  if (['konsole', 'console', 'attach', 'start', 'stop', 'restart', 'kill'].includes(cmd) && !s) { say(a.length ? 'Server „' + a.join(' ') + '“ nicht gefunden.' : 'Welcher Server? Beispiel: hp ' + cmd + ' survival'); if (C.servers.length) await cli('status', []); process.exitCode = 1; return }
+  if (cmd === 'konsole' || cmd === 'console' || cmd === 'attach') return attachCli(s);
+  if (['start', 'stop', 'restart', 'kill'].includes(cmd)) {
+    if (up) { await viaPanel('POST', 'client/servers/' + s.identifier + '/power', { signal: cmd }); say({ start: '▶ Start', stop: '■ Stopp', restart: '↻ Neustart', kill: '✕ Kill' }[cmd] + ' für „' + s.name + '“ ausgeführt.' + (cmd !== 'stop' && cmd !== 'kill' ? '  Konsole: hp konsole ' + s.identifier : '')); return }
+    // Panel läuft nicht: direkt erledigen
+    const on = s.pid && alive(s.pid);
+    if (cmd === 'start' || (cmd === 'restart' && !on)) { if (on) return say('„' + s.name + '“ läuft schon. Konsole: hp konsole ' + s.identifier); RT.delete(s.uuid); await start(s, { detach: true, now: true }); return say(s.pid ? '▶ „' + s.name + '“ gestartet. Konsole: hp konsole ' + s.identifier : 'Start nicht möglich – Details: hp konsole ' + s.identifier) }
+    if (!on) { if (s.pid) { s.pid = null; save(true) } return say('„' + s.name + '“ läuft nicht.') }
+    const e = EGGS[s.egg], pid = s.pid;
+    if (cmd === 'kill') grp(pid, 'SIGKILL');
+    else { rt(s).pid = pid; if (!(e && e.stop && e.stop !== '^C' && command(s, e.stop))) grp(pid, 'SIGINT') }
+    process.stdout.write('Warte, bis „' + s.name + '“ beendet ist ');
+    for (let i = 0; i < 60 && alive(pid); i++) { await sleep(500); if (i % 4 === 3) process.stdout.write('.') }
+    if (alive(pid)) { grp(pid, 'SIGKILL'); await sleep(500) }
+    say(alive(pid) ? ' – lässt sich nicht beenden.' : ' – beendet.');
+    reload(); const s2 = C.servers.find(x => x.uuid === s.uuid); if (s2) { s2.pid = null; s2.wasRunning = false; save(true) }
+    if (cmd === 'restart' && s2) { RT.delete(s2.uuid); await start(s2, { detach: true, now: true }); say('▶ Wieder gestartet. Konsole: hp konsole ' + s2.identifier) }
+    return;
+  }
+  say('Unbekannter Befehl „' + cmd + '“.\n\n' + HELP); process.exitCode = 1;
+}
+// Live-Konsole im Terminal: Log mitlesen, Eingaben an den Server schicken
+async function attachCli(s) {
+  const F = ctl(s), on = () => s.pid && alive(s.pid);
+  if (!on()) { console.log('„' + s.name + '“ läuft gerade nicht. Starten: hp start ' + s.identifier); try { const t = fs.readFileSync(F.log, 'utf8').split('\n').slice(-15).join('\n'); if (t.trim()) console.log('\n--- letzte Ausgaben ---\n' + t) } catch (e) { } return }
+  let off = 0; try { const st = fs.statSync(F.log); off = Math.max(0, st.size - 8192); const b = Buffer.alloc(st.size - off), fd = fs.openSync(F.log, 'r'); fs.readSync(fd, b, 0, b.length, off); fs.closeSync(fd); const t = b.toString('utf8'); process.stdout.write((off ? t.slice(t.indexOf('\n') + 1) : t).split('\n').slice(-40).join('\n')); off = st.size } catch (e) { }
+  console.log('\n─── Konsole von „' + s.name + '“ – Befehl eintippen + Enter · Strg+C trennt (Server läuft weiter) ───');
+  const dec = new StringDecoder('utf8');
+  const iv = setInterval(() => {
+    try { const st = fs.statSync(F.log); if (st.size < off) off = 0; if (st.size > off) { const b = Buffer.alloc(st.size - off), fd = fs.openSync(F.log, 'r'); fs.readSync(fd, b, 0, b.length, off); fs.closeSync(fd); off = st.size; process.stdout.write(dec.write(b)) } } catch (e) { }
+    if (!on()) { let c = ''; try { c = fs.readFileSync(F.ex, 'utf8').trim() } catch (e) { } console.log('\n─── Der Server wurde beendet' + (c ? ' (Code ' + c + ')' : '') + '. ───'); bye(0) }
+  }, 300);
+  const rl = require('readline').createInterface({ input: process.stdin, terminal: false });
+  rl.on('line', l => { if (!l.trim()) return; rt(s).pid = s.pid; if (!command(s, l)) console.log('(Konnte den Befehl nicht senden – läuft der Server noch?)') });
+  const bye = code => { clearInterval(iv); rl.close(); process.exit(code || 0) };
+  process.on('SIGINT', () => { console.log('\n─── Getrennt. „' + s.name + '“ läuft weiter. Wieder verbinden: hp konsole ' + s.identifier + ' ───'); bye(0) });
+}
+if (CMD) cli(CMD, POS.slice(1)).catch(e => { console.error('Fehler: ' + e.message); process.exit(1) });
+else panel();
