@@ -1,6 +1,14 @@
 TOOLBOX – so wird daraus eine App
 
-NEU in Version 1.6:
+NEU in Version 1.7:
+- AI Agents dürfen auf Wunsch auf deine Server zugreifen: ansehen oder voll steuern (Start/Stopp, Befehle,
+  Dateien, Plugins installieren, Server erstellen/löschen). Erlauben über das Server-Symbol im Chat.
+- Neuer Reiter „Plugins“ bei Minecraft-Servern: Plugins und Mods von Modrinth suchen und installieren.
+- Handy-Panel: Server laufen weiter, wenn das Panel beendet wird. Mit „hp konsole <server>“ nimmst du
+  sie in Termux wieder auf. Neue Befehle: hp status, hp start/stop/restart/kill, hp stopp-alle.
+  WICHTIG: Lade dafür die neue handy-panel.js einmal neu in Termux (siehe „HANDY-PANEL“ unten).
+
+Version 1.6:
 - Chat komplett neu: Kontakte per Kurzcode oder QR-Code, Verlauf bleibt erhalten, Fotos, Dateien,
   Sprachnachrichten, Lesebestätigung, Tipp-Anzeige und Reaktionen.
 - Server: Admin-Modus für dein eigenes Pterodactyl-Panel (Server erstellen, Benutzer, Nodes, Ports)
@@ -132,11 +140,47 @@ die über die App Termux direkt auf dem Handy läuft (ohne Docker). Die App steu
 3. Termux zeigt einen Schlüssel (tbp_…). In der App einfügen > Verbinden > ersten Server erstellen.
 Vorlagen: Minecraft Paper, Vanilla, Fabric (wählt automatisch die neueste Version, die zu deinem Java passt),
 Node.js, Python und „Eigener Befehl“. Konsole, Dateien, Start/Stopp und Startup funktionieren wie gewohnt.
+Befehle in Termux (ab 1.7, der Befehl „hp“ wird beim ersten Start automatisch eingerichtet):
+  hp                     Panel starten
+  hp status              welche Server laufen
+  hp konsole <server>    Live-Konsole eines laufenden Servers wieder aufnehmen und Befehle eintippen.
+                         Strg+C trennt nur – der Server läuft weiter.
+  hp start|stop|restart|kill <server>      ·      hp stopp-alle      ·      hp schluessel      ·      hp hilfe
+  <server> = Name (oder ein Teil davon), Server-ID oder Nummer aus „hp status“.
+Deine Server laufen weiter, auch wenn du das Panel mit Strg+C beendest. Beim nächsten Start („hp“)
+übernimmt das Panel sie wieder – mit Konsole in der App.
+Update auf eine neue Version des Handy-Panels: in Termux erneut
+  curl -fsSLo handy-panel.js https://DEIN-NAME.github.io/DEIN-REPO/handy-panel.js
 Hinweise:
 - Termux muss laufen. Android kann Hintergrund-Prozesse beenden: termux-wake-lock nutzen; ab Android 14 in den
   Entwickleroptionen „Einschränkungen für untergeordnete Prozesse deaktivieren“.
 - Minecraft braucht viel Arbeitsspeicher (1–2 GB). Spieler im selben WLAN verbinden sich mit der IP des Handys
   und dem Port des Servers.
 - Backups, Zeitpläne und Datenbanken gibt es im Handy-Panel nicht.
+- Startet Android das Handy neu oder beendet es Termux ganz, enden auch die Server. Beim nächsten „hp“
+  startet das Panel die Server automatisch wieder, die vorher liefen.
 - Das Panel ist nur auf dem Handy selbst erreichbar (127.0.0.1). Mit „node handy-panel.js --lan“ auch im WLAN –
   dann kann jeder mit dem Schlüssel zugreifen.
+
+
+PLUGINS FÜR MINECRAFT (NEU IN 1.7)
+- Server öffnen > Reiter „Plugins“ (erscheint bei Minecraft-Servern). Die App erkennt Paper/Spigot (Plugins)
+  bzw. Fabric (Mods) und die Minecraft-Version, sucht auf Modrinth nur passende Versionen und installiert
+  nötige Abhängigkeiten mit. Eine ältere Version desselben Plugins wird ersetzt.
+- Plugins werden erst nach einem Neustart des Servers geladen (Knopf erscheint nach der Installation).
+- Vanilla-Server können keine Plugins. Erkennt die App die Art falsch: Regler-Symbol im Reiter.
+
+
+AI AGENTS MIT SERVERZUGRIFF (NEU IN 1.7)
+- Im Chat eines Agenten auf das Server-Symbol (neben „Internet“) tippen:
+  Aus · Nur ansehen (Status, Konsole, Dateien lesen, Plugins suchen) · Voll (zusätzlich starten/stoppen,
+  Konsolenbefehle mit Antwort, Dateien schreiben/löschen, Plugins installieren, Server erstellen/löschen).
+- In den Einstellungen des Agenten: welche Server-Verbindung (alle oder eine) und ob er vor riskanten
+  Aktionen nachfragt (Stoppen, Neustart, Kill, Löschen, Plugins installieren, Server erstellen). Standard: nachfragen.
+- Einen ganzen Server löscht der Agent nur, wenn du den Namen zur Bestätigung eintippst. Die Minecraft-EULA
+  akzeptierst immer du selbst.
+- Beispiele: „Welche Server laufen?“, „Starte Survival und sag mir, wer online ist“,
+  „Installiere EssentialsX und LuckPerms auf Survival“, „Erstelle einen Paper-Server mit 2 GB RAM“.
+- Der Agent nutzt die Verbindungen aus dem Werkzeug „Server“ (Pterodactyl oder Handy-Panel). Kleine Modelle
+  benutzen die Werkzeuge nicht immer zuverlässig – größere Modelle (z. B. über Ollama) klappen besser.
+- Plugin-Suche und -Installation laufen über Modrinth (Internet), auch wenn „Internet“ für den Agenten aus ist.
