@@ -3791,9 +3791,10 @@ async function gen(a,msgs,o){
 
 /* ----- Agent: Systemanweisung, Werkzeuge, Gedächtnis ----- */
 const memFor=a=>D.mem.filter(m=>D.sh||m.a===a.id||m.a==='*');
-const TN='list_files|read_file|write_file|append_file|delete_file|remember|forget|web_search|open_url';
-const TI={list_files:'folder',read_file:'file',write_file:'edit',append_file:'edit',delete_file:'trash',remember:'brain',forget:'brain',web_search:'globe',open_url:'globe'};
-const TLB={list_files:'Schaut in den Arbeitsbereich',read_file:'Liest eine Datei',write_file:'Schreibt eine Datei',append_file:'Ergänzt eine Datei',delete_file:'Löscht eine Datei',remember:'Merkt sich etwas',forget:'Vergisst etwas',web_search:'Sucht im Internet',open_url:'Liest eine Webseite'};
+const SRV_T='server_list|server_status|server_console|server_command|server_power|server_files|server_read|server_write|server_delete_file|plugin_search|plugin_install|server_create|server_delete';
+const TN='list_files|read_file|write_file|append_file|delete_file|remember|forget|web_search|open_url|'+SRV_T;
+const TI={server_list:'server',server_status:'server',server_console:'terminal',server_command:'terminal',server_power:'play',server_files:'folder',server_read:'file',server_write:'edit',server_delete_file:'trash',plugin_search:'puzzle',plugin_install:'puzzle',server_create:'plus',server_delete:'trash',list_files:'folder',read_file:'file',write_file:'edit',append_file:'edit',delete_file:'trash',remember:'brain',forget:'brain',web_search:'globe',open_url:'globe'};
+const TLB={server_list:'Schaut nach den Servern',server_status:'Prüft einen Server',server_console:'Liest die Konsole',server_command:'Sendet einen Befehl',server_power:'Steuert einen Server',server_files:'Schaut in die Server-Dateien',server_read:'Liest eine Server-Datei',server_write:'Schreibt eine Server-Datei',server_delete_file:'Löscht eine Server-Datei',plugin_search:'Sucht Plugins',plugin_install:'Installiert ein Plugin',server_create:'Erstellt einen Server',server_delete:'Löscht einen Server',list_files:'Schaut in den Arbeitsbereich',read_file:'Liest eine Datei',write_file:'Schreibt eine Datei',append_file:'Ergänzt eine Datei',delete_file:'Löscht eine Datei',remember:'Merkt sich etwas',forget:'Vergisst etwas',web_search:'Sucht im Internet',open_url:'Liest eine Webseite'};
 function sysPrompt(a,files){
   const now=new Date().toLocaleString('de-DE',{weekday:'long',day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
   const mem=memFor(a).slice(-60),tl=a.tools!==false;
@@ -3816,6 +3817,7 @@ Werkzeuge:
 <tool name="remember">FAKT</tool> – dauerhaften Fakt über den Nutzer merken (Name, Vorlieben, Ziele …)
 <tool name="forget" id="ID"/> – gemerkten Fakt löschen`;
     if(a.net)s+=`\n<tool name="web_search">SUCHBEGRIFFE</tool> – im Internet suchen\n<tool name="open_url">ADRESSE</tool> – eine Webseite lesen`;
+    if(srvOn(a))s+=srvPrompt(a);
     s+=`\n\nRegeln: Höchstens ein Werkzeug pro Nachricht. Benutze Werkzeuge nur, wenn sie wirklich helfen – sonst antworte normal. Erzählt der Nutzer etwas Dauerhaftes über sich, speichere es mit remember. Erfinde niemals Werkzeug-Ergebnisse.`;
     s+='\nDateien im Arbeitsbereich: '+(files.length?files.slice(0,40).map(f=>f.p).join(', '):'(keine)');
   }
@@ -3827,7 +3829,7 @@ function splitTh(t){let th='';let b=String(t||'').replace(/<think>([\s\S]*?)(<\/
 const stripTh=t=>splitTh(t).body;
 const hideCalls=t=>String(t||'').replace(/<tool_call>[\s\S]*?(<\/tool_call>|$)/gi,'').replace(/<tool\b[^>]*\/\s*>/gi,'').replace(/<tool\b[^>]*>[\s\S]*?(<\/tool\s*>|$)/gi,'')
   .replace(new RegExp('<('+TN+')\\b[^>]*\\/\\s*>','gi'),'').replace(new RegExp('<('+TN+')\\b[^>]*>[\\s\\S]*?(<\\/\\1\\s*>|$)','gi'),'');
-function attrs(s){const o={};let m;const re=/([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>\/]+))/g;while((m=re.exec(s||'')))o[m[1].toLowerCase()]=m[2]!=null?m[2]:m[3]!=null?m[3]:m[4];return o}
+function attrs(s){const o={};let m;const re=/([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>\/]+))/g;while((m=re.exec(s||''))){let k=m[1].toLowerCase();if(k in o)k+='2';if(!(k in o))o[k]=m[2]!=null?m[2]:m[3]!=null?m[3]:m[4]}return o}
 const RXS=[
   [/<tool\b([^>]*?)\/\s*>/i,m=>{const at=attrs(m[1]);return{n:at.name,at,b:''}}],
   [/<tool\b([^>]*)>([\s\S]*?)<\/tool\s*>/i,m=>{const at=attrs(m[1]);return{n:at.name,at,b:m[2]}}],
@@ -3880,9 +3882,118 @@ async function runTool(a,c,sig){
       const pg=await readPage(u,sig);
       return r(1,(pg.title?'Titel: '+pg.title+'\n':'')+'Adresse: '+u+'\n\n'+cut(pg.text,Math.max(1500,Math.floor(ctxOf(a)*1.4))),'Webseite gelesen: '+hostOf(u))}
   }
+  if(SRV_RE.test(c.n))return await runSrv(a,c,sig);
   return r(0,'Unbekanntes Werkzeug „'+c.n+'“. Verfügbar: '+TN.split('|').join(', '),'Unbekanntes Werkzeug: '+c.n);
   }catch(e){if(sig&&sig.aborted)return r(0,'Abgebrochen.','Abgebrochen');return r(0,'Fehler: '+fe(e),'Fehler bei '+c.n)}
 }
+
+/* ----- Serverzugriff (nur mit Erlaubnis; nutzt die Verbindungen aus dem Werkzeug „Server“) ----- */
+const SRV_FULL=new Set(['server_command','server_power','server_write','server_delete_file','plugin_install','server_create','server_delete']);
+const SRV_RE=new RegExp('^('+SRV_T+')$');
+let SRVC={t:0,l:null,k:''};
+const srvOn=a=>!!(a&&a.srv&&a.srv!=='off'&&a.tools!==false&&window.tbSrv);
+const STN2={running:'läuft',offline:'aus',starting:'startet',stopping:'stoppt'};
+async function srvIdx(a,force){
+  const k=a.srvP||'';if(!force&&SRVC.l&&SRVC.k===k&&Date.now()-SRVC.t<45000)return SRVC.l;
+  const ps=tbSrv.profiles().filter(p=>!k||p.id===k);if(!ps.length)throw Error('Es gibt noch keine Server-Verbindung. Der Nutzer richtet sie im Werkzeug „Server“ ein.');
+  const l=[];
+  for(const p of ps){try{(await tbSrv.servers(p.id)).forEach(s=>{const al=s.allocs&&(s.allocs.find(x=>x.is_default)||s.allocs[0]);
+      l.push({pid:p.id,pn:p.name,admin:p.admin,id:s.id,name:s.name,state:s.suspended?'gesperrt':s.status?s.status:((s.res&&s.res.current_state)||'unbekannt'),mc:/java|\.jar\b/i.test(s.inv||s.image||''),port:al?(al.ip_alias||al.ip)+':'+al.port:'',lim:s.limits||{}})})}
+    catch(e){l.push({pid:p.id,pn:p.name,admin:p.admin,err:fe(e)})}}
+  SRVC={t:Date.now(),l,k};return l}
+function srvPick(l,q){q=String(q||'').trim().toLowerCase().replace(/^[\["„]+|[\]"“]+$/g,'');const ok=l.filter(x=>!x.err);
+  if(!q)return ok.length===1?ok[0]:null;
+  return ok.find(x=>x.id.toLowerCase()===q)||ok.find(x=>x.name.toLowerCase()===q)||ok.find(x=>x.name.toLowerCase().includes(q))||ok.find(x=>q.includes(x.name.toLowerCase()))||null}
+const srvLine=x=>x.err?`- Verbindung „${x.pn}“: nicht erreichbar (${x.err})`:`- „${x.name}“ [${x.id}] ${STN2[x.state]||x.state}${x.mc?' · Minecraft':''}${x.port?' · '+x.port:''}`;
+const srvConfirm=async(a,title,text)=>a.srvAsk===false||!!(await ask({title,desc:text,ok:'Erlauben',no:'Ablehnen'}));
+async function srvCreate(a,at,r){
+  const ps=tbSrv.profiles().filter(p=>(!a.srvP||p.id===a.srvP)&&p.admin);if(!ps.length)return r(0,'Zum Erstellen braucht eine Verbindung einen Admin-Schlüssel (oder das Handy-Panel).','Kein Admin-Zugriff');
+  const p=ps[0],A=(m,pp,o)=>tbSrv.aapi(p.id,m,pp,o),L=x=>((x&&x.data)||[]).map(y=>y.attributes||y);
+  const name=String(at.server||at.name2||at.title||'').trim().slice(0,100);if(!name)return r(0,'Bitte server="NAME" für den neuen Server angeben.','Kein Name');
+  const type=String(at.type||at.egg||'paper').toLowerCase().trim();
+  const nests=L(await A('GET','/nests',{q:{include:'eggs',per_page:100}})),eggs=[];
+  nests.forEach(n=>L(n.relationships&&n.relationships.eggs).forEach(e=>eggs.push({nest:n.id,nn:n.name,id:e.id,name:e.name})));
+  const nm=e=>e.name.toLowerCase(),eg=eggs.find(e=>nm(e)===type)||eggs.find(e=>nm(e).includes(type))||eggs.find(e=>type.includes(nm(e)));
+  if(!eg)return r(0,'Keine Vorlage „'+type+'“. Vorhanden: '+eggs.map(e=>e.name).join(', '),'Vorlage nicht gefunden');
+  const ed=(await A('GET','/nests/'+eg.nest+'/eggs/'+eg.id,{q:{include:'variables'}})).attributes,vars=L(ed.relationships&&ed.relationships.variables);
+  const env={};vars.forEach(v=>{env[v.env_variable]=v.default_value==null?'':String(v.default_value);const o=at[v.env_variable.toLowerCase()];if(o!=null)env[v.env_variable]=String(o)});
+  const eulaV=vars.find(v=>v.env_variable==='EULA'),mc=!!eulaV||/minecraft/i.test(eg.nn)||/paper|spigot|purpur|vanilla|fabric|forge|bukkit/i.test(eg.name);
+  const users=L(await A('GET','/users',{q:{per_page:100}})),user=users.find(u=>u.root_admin)||users[0];if(!user)return r(0,'Im Panel gibt es keinen Benutzer.','Kein Benutzer');
+  let alloc=null;for(const n of L(await A('GET','/nodes',{q:{per_page:100}}))){const al=L(await A('GET','/nodes/'+n.id+'/allocations',{q:{per_page:500}})).find(x=>!x.assigned);if(al){alloc=al;break}}
+  if(!alloc)return r(0,'Es ist kein Port mehr frei. Der Nutzer muss im Admin-Bereich (Nodes) Ports hinzufügen.','Kein freier Port');
+  const mem=Math.max(128,Math.min(65536,parseInt(at.memory||at.ram,10)||2048));
+  let ok=true,eula=false;
+  if(mc||a.srvAsk!==false){const v=await ask({title:'KI möchte einen Server erstellen',desc:'Der Agent <b>'+esc(a.name)+'</b> möchte <b>„'+esc(name)+'“</b> anlegen: '+esc(eg.name)+', '+mem+' MB RAM, Port '+esc((alloc.alias||alloc.ip)+':'+alloc.port)+' (Verbindung „'+esc(p.name)+'“).',
+      fields:mc?[{id:'eula',type:'check',label:'Ich akzeptiere die Minecraft-EULA (aka.ms/MinecraftEULA) – sonst startet der Server nicht',value:false}]:[],ok:'Erstellen',no:'Ablehnen'});ok=!!v;eula=!!(v&&v.eula)}
+  if(!ok)return r(0,'Der Nutzer hat das abgelehnt.','Abgelehnt: Server erstellen');
+  if(eulaV)env.EULA=eula?'true':'false';
+  const imgs=ed.docker_images?Object.values(ed.docker_images):[];
+  const s=(await A('POST','/servers',{json:{name,description:'Erstellt von '+a.name,user:user.id,egg:eg.id,docker_image:imgs[0]||ed.docker_image,startup:ed.startup,environment:env,limits:{memory:mem,swap:0,disk:Math.max(1024,parseInt(at.disk,10)||10240),io:500,cpu:0},feature_limits:{databases:0,backups:1,allocations:1},allocation:{default:alloc.id},start_on_completion:true},timeout:60000})).attributes;
+  if(mc&&eula&&!eulaV)(async()=>{for(let i=0;i<72;i++){await new Promise(z=>setTimeout(z,5000));try{const x=(await tbSrv.api(p.id,'GET','/servers/'+s.identifier)).attributes;if(!x.status){await tbSrv.api(p.id,'POST','/servers/'+s.identifier+'/files/write',{q:{file:'/eula.txt'},text:'eula=true\n'});return}}catch(e){}}})();
+  SRVC.t=0;return r(1,`✓ Server „${s.name}“ [${s.identifier}] erstellt (${eg.name}, Port ${alloc.port}, ${mem} MB RAM). Die Installation läuft und kann einige Minuten dauern, danach startet er automatisch.${mc&&!eula?' Achtung: Ohne akzeptierte EULA startet Minecraft nicht.':''}`,'Server erstellt: '+s.name)}
+async function runSrv(a,c,sig){
+  const at=c.at||{},b=String(c.b||''),r=(ok,out,l,x)=>Object.assign({ok:!!ok,out,l},x||{});
+  if(!window.tbSrv)return r(0,'Das Server-Werkzeug ist nicht verfügbar.','Kein Serverzugriff');
+  if(!a.srv||a.srv==='off')return r(0,'Der Nutzer hat dir keinen Serverzugriff gegeben. Er kann ihn über das Server-Symbol oben im Chat erlauben.','Kein Serverzugriff (aus)');
+  if(a.srv==='read'&&SRV_FULL.has(c.n))return r(0,'Du darfst Server nur ansehen, nicht ändern. Der Nutzer kann dir über das Server-Symbol vollen Zugriff geben.','Nur Lesezugriff');
+  if(c.n==='server_list'){const l=await srvIdx(a,true);return r(1,l.length?'Server:\n'+l.map(srvLine).join('\n'):'Keine Server vorhanden.','Server aufgelistet')}
+  if(c.n==='server_create')return srvCreate(a,at,r);
+  const l=await srvIdx(a),s=srvPick(l,at.server||at.id||b&&c.n==='server_status'&&b);
+  if(!s)return r(0,(at.server?'Den Server „'+at.server+'“ gibt es nicht. ':'Welcher Server? Gib server="ID" an. ')+'Vorhanden:\n'+l.map(srvLine).join('\n'),'Server nicht gefunden');
+  const sp=x=>'/servers/'+encodeURIComponent(s.id)+x,A=(m,p,o)=>tbSrv.api(s.pid,m,sp(p),o),who='Der Agent <b>'+esc(a.name)+'</b> möchte ';
+  switch(c.n){
+    case 'server_status':{const x=(await A('GET','/resources')).attributes||{},rs=x.resources||{};
+      return r(1,`„${s.name}“ [${s.id}]: ${STN2[x.current_state]||x.current_state}${x.is_suspended?' (gesperrt)':''}\nCPU: ${(+rs.cpu_absolute||0).toFixed(1)} %\nRAM: ${fmtB(rs.memory_bytes)}${s.lim.memory?' von '+s.lim.memory+' MB':''}\nSpeicher: ${fmtB(rs.disk_bytes)}\nLaufzeit: ${rs.uptime?Math.round(rs.uptime/60000)+' Min':'–'}${s.port?'\nAdresse: '+s.port:''}`,'Status: '+s.name)}
+    case 'server_console':{const x=await tbSrv.console(s.pid,s.id,{});return r(1,`Konsole „${s.name}“ (${STN2[x.state]||x.state||'?'}):\n`+(x.lines.slice(-40).join('\n')||'(leer)'),'Konsole gelesen: '+s.name)}
+    case 'server_command':{const cmd=(b||at.command||at.cmd||'').trim().replace(/^\//,'').slice(0,500);if(!cmd)return r(0,'Kein Befehl angegeben.','Kein Befehl');
+      const x=await tbSrv.console(s.pid,s.id,{cmd});return r(1,`Befehl „${cmd}“ an „${s.name}“ gesendet. Ausgabe:\n`+(x.lines.slice(-30).join('\n')||'(keine Ausgabe)'),'Befehl: '+cmd.slice(0,50))}
+    case 'server_power':{const m={start:'start',starten:'start',stop:'stop',stoppen:'stop',restart:'restart',neustart:'restart',neustarten:'restart',kill:'kill'},sig=m[String(at.action||at.signal||b).trim().toLowerCase()];
+      if(!sig)return r(0,'action muss start, stop, restart oder kill sein.','Unbekannte Aktion');
+      const verb={stop:'stoppen',restart:'neu starten',kill:'hart beenden (Kill)'}[sig];
+      if(sig!=='start'&&!await srvConfirm(a,'KI möchte „'+s.name+'“ '+verb,who+'diesen Server '+verb+'. Spieler werden dabei getrennt.'))return r(0,'Der Nutzer hat das abgelehnt.','Abgelehnt: '+sig);
+      await A('POST','/power',{json:{signal:sig}});SRVC.t=0;return r(1,`✓ „${sig}“ für „${s.name}“ ausgeführt.`,({start:'Gestartet',stop:'Gestoppt',restart:'Neu gestartet',kill:'Beendet'}[sig])+': '+s.name)}
+    case 'server_files':{const d=at.path||at.dir||b.trim()||'/',l2=((await A('GET','/files/list',{q:{directory:d}})).data||[]).map(x=>x.attributes);
+      return r(1,`Dateien in ${d} auf „${s.name}“ (${l2.length}):\n`+l2.slice(0,80).map(f=>'- '+f.name+(f.is_file?' ('+fmtB(f.size)+')':'/')).join('\n'),'Dateien: '+s.name+' '+d)}
+    case 'server_read':{const f=at.path||at.file;if(!f)return r(0,'Bitte path angeben.','Kein Pfad');const t=await A('GET','/files/contents',{q:{file:f},as:'text'});
+      return r(1,cut(String(t==null?'':t),Math.max(1500,Math.floor(ctxOf(a)*1.6)))||'(leer)','Gelesen: '+f+' ('+s.name+')')}
+    case 'server_write':{const f=at.path||at.file;if(!f)return r(0,'Bitte path angeben.','Kein Pfad');const t=fbody(b||at.content||'');
+      await A('POST','/files/write',{q:{file:f},text:t});return r(1,'✓ Gespeichert: '+f+' ('+t.length+' Zeichen) auf „'+s.name+'“.','Datei geschrieben: '+f)}
+    case 'server_delete_file':{const f=String(at.path||at.file||'').replace(/\/+$/,'');if(!f||f==='/')return r(0,'Bitte path angeben.','Kein Pfad');
+      if(!await srvConfirm(a,'KI möchte etwas löschen',who+'<b>'+esc(f)+'</b> auf „'+esc(s.name)+'“ löschen.'))return r(0,'Der Nutzer hat das abgelehnt.','Abgelehnt: löschen');
+      const i=f.lastIndexOf('/'),root=i>0?f.slice(0,i):'/';await A('POST','/files/delete',{json:{root,files:[f.slice(i+1)]}});return r(1,'✓ Gelöscht: '+f,'Gelöscht: '+f)}
+    case 'plugin_search':case 'plugin_install':{
+      if(!s.mc)return r(0,'„'+s.name+'“ ist kein Minecraft-Server.','Kein Minecraft-Server');
+      const info=await tbSrv.mcInfo(s.pid,s.id);
+      if(c.n==='plugin_search'){const q=(b||at.query||'').trim().slice(0,100),l3=await tbSrv.mrSearch(q,info,8);
+        return r(1,`${info.loader==='fabric'?'Mods':'Plugins'} auf Modrinth für „${s.name}“ (${info.loader||'?'}, Minecraft ${info.version||'?'}):\n`+(l3.map(x=>`- ${x.slug}: ${x.title} – ${x.desc.slice(0,90)} (↓ ${num(x.dl)})`).join('\n')||'Nichts gefunden.')+'\nInstallieren mit plugin_install und plugin="slug".','Plugins gesucht: '+q)}
+      const pl=(at.plugin||at.slug||at.project||b||'').trim().toLowerCase();if(!pl)return r(0,'Bitte plugin="slug" angeben (aus plugin_search).','Kein Plugin angegeben');
+      if(!await srvConfirm(a,'KI möchte ein Plugin installieren',who+'<b>'+esc(pl)+'</b> (von Modrinth) auf „'+esc(s.name)+'“ installieren.'))return r(0,'Der Nutzer hat das abgelehnt.','Abgelehnt: '+pl);
+      const res=await tbSrv.mrInstall(s.pid,s.id,pl,info),okL=res.filter(x=>!x.error),er=res.filter(x=>x.error);
+      return r(okL.length,'Installiert in '+info.dir+': '+(okL.map(x=>x.file+' ('+x.version+')').join(', ')||'nichts')+(er.length?'\nFehler: '+er.map(x=>x.project+': '+x.error).join('; '):'')+'\nDamit es geladen wird, muss der Server neu starten (server_power action="restart").','Plugin installiert: '+pl)}
+    case 'server_delete':{if(!s.admin)return r(0,'Für diese Verbindung gibt es keinen Admin-Schlüssel.','Kein Admin-Zugriff');
+      const v=await ask({title:'KI möchte einen Server löschen',desc:who+'<b>„'+esc(s.name)+'“</b> mit allen Dateien endgültig löschen.',fields:[{id:'n',label:'Zur Bestätigung den Namen eintippen'}],ok:'Endgültig löschen',no:'Ablehnen',danger:true,check:v=>v.n.trim()===s.name.trim()?'':'Der Name stimmt nicht.'});
+      if(!v)return r(0,'Der Nutzer hat das abgelehnt.','Abgelehnt: Server löschen');
+      const app=(((await tbSrv.aapi(s.pid,'GET','/servers',{q:{per_page:100}})).data)||[]).map(x=>x.attributes).find(x=>x.identifier===s.id);if(!app)throw Error('Server im Admin-Bereich nicht gefunden.');
+      await tbSrv.aapi(s.pid,'DELETE','/servers/'+app.id);SRVC.t=0;return r(1,'✓ „'+s.name+'“ wurde gelöscht.','Server gelöscht: '+s.name)}
+  }
+  return r(0,'Unbekanntes Werkzeug.','Unbekannt')}
+function srvPrompt(a){
+  const full=a.srv==='full',c=SRVC.l&&SRVC.k===(a.srvP||'')&&Date.now()-SRVC.t<300000?SRVC.l:null;
+  return`\n\nDu hast ${full?'VOLLEN':'nur LESENDEN'} Zugriff auf die Server des Nutzers (z. B. Minecraft-Server, Bots). Server-Werkzeuge:
+<tool name="server_list"/> – alle Server mit Status
+<tool name="server_status" server="ID"/> – CPU, RAM, Laufzeit
+<tool name="server_console" server="ID"/> – letzte Konsolen-Ausgaben
+<tool name="server_files" server="ID" path="/"/> – Dateien auflisten
+<tool name="server_read" server="ID" path="DATEI"/> – Datei lesen
+<tool name="plugin_search" server="ID">SUCHBEGRIFF</tool> – Minecraft-Plugins/Mods suchen (Modrinth)`+(full?`
+<tool name="server_command" server="ID">BEFEHL</tool> – Konsolenbefehl ausführen (ohne /), die Ausgabe kommt zurück
+<tool name="server_power" server="ID" action="restart"/> – action: start, stop, restart oder kill
+<tool name="server_write" server="ID" path="DATEI">INHALT</tool> – Datei schreiben (z. B. Plugin-Konfiguration)
+<tool name="server_delete_file" server="ID" path="DATEI"/> – Datei löschen
+<tool name="plugin_install" server="ID" plugin="SLUG"/> – Plugin/Mod installieren (slug aus plugin_search), danach neu starten
+<tool name="server_create" server="NAME" type="paper" memory="2048"/> – neuen Server erstellen (type: paper, vanilla, fabric, node.js, python …)
+<tool name="server_delete" server="ID"/> – Server endgültig löschen`:'')+`
+Server: ${c?'\n'+c.map(srvLine).join('\n'):'(noch unbekannt – zuerst server_list aufrufen)'}`}
 
 /* ----- Internet: Websuche und Seiten lesen ----- */
 const pxCfg=()=>{const s=store.get('tb_srv',{});return s&&s.px&&s.px.url&&s.px.key?s.px:null};
@@ -4036,7 +4147,7 @@ function msgHtml(m){
   return`<div class="bub ai"${m.live?' id="ailive"':''}>${aHtml(m)}</div>`}
 function msgsHtml(){const c=R.chat,a=agent();
   if(!c||!c.msgs.length)return`<div class="bub sy">Schreib ${esc(a?a.name:'')} etwas. Zum Beispiel:</div><div class="chips" style="justify-content:center">${SUG.map(s=>`<button class="chipb" data-a="sug">${esc(s)}</button>`).join('')}</div>`;
-  return c.msgs.map(msgHtml).join('')}
+  return c.msgs.map((m,i)=>m.r==='a'&&!m.live&&!m.call&&!m.stop&&!hideCalls(stripTh(m.c)).trim()&&!splitTh(m.c).th.trim()&&c.msgs[i+1]&&c.msgs[i+1].r==='t'?'':msgHtml(m)).join('')}
 let rafP=0;
 function live(){if(rafP)return;rafP=requestAnimationFrame(()=>{rafP=0;const n=$('#ailive',el),c=R.chat;if(!n||!c)return;const m=c.msgs[c.msgs.length-1];if(m&&m.r==='a')n.innerHTML=aHtml(m);scrollMs()})}
 function scrollMs(force){const ms=$('#ms',el);if(ms&&(force||ms.scrollHeight-ms.scrollTop-ms.clientHeight<160))ms.scrollTop=ms.scrollHeight}
@@ -4065,10 +4176,10 @@ const noAg=b=>{b.innerHTML=`<p class="empty">${ico('bot',36)}<br>Noch kein Model
 async function drawChat(b){
   const a=agent();if(!a)return noAg(b);
   await loadChat(a);if(R.tab!=='chat'||agent()!==a||!b.isConnected)return;
-  b.innerHTML=`<div class="ai-cb"><button class="iconbtn${a.net?' on':''}" data-a="net" title="Internetzugriff für den Agenten">${ico('globe',18)}${a.net?'Internet an':'Internet aus'}</button><span class="sp">${esc((R.chat&&R.chat.title)||'Neuer Chat')}</span><button class="iconbtn" data-a="new" title="Neuer Chat" aria-label="Neuer Chat">${ico('plus',18)}</button><button class="iconbtn" data-a="hist" title="Verlauf" aria-label="Verlauf">${ico('clock',18)}</button><button class="iconbtn" data-a="cmenu" title="Mehr" aria-label="Mehr">${ico('more',18)}</button></div>
+  b.innerHTML=`<div class="ai-cb"><button class="iconbtn${a.net?' on':''}" data-a="net" title="Internetzugriff für den Agenten">${ico('globe',18)}${a.net?'Internet an':'Internet aus'}</button>${window.tbSrv?`<button class="iconbtn${a.srv&&a.srv!=='off'?' on':''}" data-a="srvacc" title="Zugriff auf Server" aria-label="Zugriff auf Server">${ico('server',18)}</button>`:''}<span class="sp">${esc((R.chat&&R.chat.title)||'Neuer Chat')}</span><button class="iconbtn" data-a="new" title="Neuer Chat" aria-label="Neuer Chat">${ico('plus',18)}</button><button class="iconbtn" data-a="hist" title="Verlauf" aria-label="Verlauf">${ico('clock',18)}</button><button class="iconbtn" data-a="cmenu" title="Mehr" aria-label="Mehr">${ico('more',18)}</button></div>
   <div id="ailp"></div><div id="ms" class="ms ai-ms">${msgsHtml()}</div>
   <div class="ai-in"><textarea id="mi" rows="1" placeholder="Nachricht an ${esc(a.name)} …" autocomplete="off"></textarea>${sendBtn()}</div>
-  <p class="foot">${ico('lock',14)}<span>${onDev(a)?'Läuft komplett auf diesem Gerät.':'Läuft auf deinem eigenen '+(a.eng==='ollama'?'Ollama-Rechner':'Server')+'.'} ${a.net?'Internet an: Der Agent darf im Netz suchen und Seiten lesen.':'Internet aus: Der Agent bleibt offline.'}</span></p>`;
+  <p class="foot">${ico('lock',14)}<span>${onDev(a)?'Läuft komplett auf diesem Gerät.':'Läuft auf deinem eigenen '+(a.eng==='ollama'?'Ollama-Rechner':'Server')+'.'} ${a.net?'Internet an: Der Agent darf im Netz suchen und Seiten lesen.':'Internet aus: Der Agent bleibt offline.'}${a.srv==='full'?' Serverzugriff: voll'+(a.srvAsk===false?' (ohne Nachfragen)':' (fragt bei riskanten Aktionen nach)')+'.':a.srv==='read'?' Serverzugriff: nur ansehen.':''}</span></p>`;
   updLP();scrollMs(true);const i=$('#mi',el);if(i&&R.draft){i.value=R.draft;autoH(i)}
 }
 async function hist(){const a=agent();if(!a)return;let l=[];try{l=await CHS.list(a.id)}catch(e){}
@@ -4227,7 +4338,7 @@ async function olPull(model,on,sig){
 async function install(eng,id,name,size,have){
   if(R.busy)return toast('Bitte warten, bis die Antwort fertig ist.');
   const ex=D.ag.find(a=>a.eng===eng&&a.model===id);if(ex)return useAg(ex.id);
-  const a={id:uid(),name:String(name||id).slice(0,40),eng,model:id,size:size||'',temp:0.7,net:false,tools:true,auto:false,sys:'',ctx:0,t:Date.now()};
+  const a={id:uid(),name:String(name||id).slice(0,40),eng,model:id,size:size||'',temp:0.7,net:false,tools:true,auto:false,sys:'',ctx:0,srv:'off',srvP:'',srvAsk:true,t:Date.now()};
   const add=()=>{D.ag.push(a);D.cur=a.id;save();R.inst=null;R.tab='chat';R.chat=null;draw();toast('✓ '+a.name+' ist bereit')};
   if(eng==='oai'||(eng==='ollama'&&have))return add();
   if(onDev(a)){try{if(navigator.storage&&navigator.storage.persist)await navigator.storage.persist()}catch(e){}}
@@ -4250,9 +4361,13 @@ async function agSet(a){
     {id:'net',type:'check',label:'Internetzugriff erlauben (Websuche und Seiten lesen)',value:!!a.net},
     {id:'tools',type:'check',label:'Werkzeuge benutzen (Dateien und Gedächtnis). Bei sehr kleinen Modellen ggf. ausschalten.',value:a.tools!==false},
     {id:'auto',type:'check',label:'Nach jeder Antwort automatisch Wissen sammeln (braucht extra Rechenzeit)',value:!!a.auto},
+    ...(window.tbSrv&&tbSrv.profiles().length?[{id:'srv',type:'select',label:'Zugriff auf Server',value:a.srv||'off',opts:[['off','Aus'],['read','Nur ansehen (Status, Konsole, Dateien lesen)'],['full','Voll (steuern, Befehle, Dateien, Plugins, Server erstellen)']]},
+      {id:'srvP',type:'select',label:'Welche Server-Verbindung',value:a.srvP||'',opts:[['','Alle Verbindungen'],...tbSrv.profiles().map(p=>[p.id,p.name+' ('+p.host+')'])]},
+      {id:'srvAsk',type:'check',label:'Vor riskanten Server-Aktionen nachfragen (Stoppen, Löschen, Plugins installieren …)',value:a.srvAsk!==false}]:[]),
     ...(/qwen3/i.test(a.model)?[{id:'nt',type:'check',label:'Schnellmodus: ohne vorheriges „Nachdenken“ antworten',value:!!a.nt}]:[])],
     ok:'Speichern',check:v=>v.name.trim()?'':'Bitte einen Namen eingeben.'});
-  if(!v)return;Object.assign(a,{name:v.name.trim().slice(0,40),sys:v.sys.trim(),temp:+v.temp,ctx:+v.ctx,net:v.net,tools:v.tools,auto:v.auto});if('nt' in v)a.nt=v.nt;save();draw()}
+  if(!v)return;Object.assign(a,{name:v.name.trim().slice(0,40),sys:v.sys.trim(),temp:+v.temp,ctx:+v.ctx,net:v.net,tools:v.tools,auto:v.auto});if('nt' in v)a.nt=v.nt;
+  if('srv' in v){Object.assign(a,{srv:v.srv,srvP:v.srvP,srvAsk:v.srvAsk});if(v.srv!=='off')a.tools=true;SRVC={t:0,l:null,k:''}}save();draw()}
 async function agMenu(a){
   const r=await pickMenu(a.name,[a.id!==D.cur&&{id:'use',icon:'check',label:'Verwenden'},{id:'set',icon:'sliders',label:'Einstellungen'},{id:'chats',icon:'chat',label:'Alle Chats löschen'},{id:'ws',icon:'folder',label:'Arbeitsbereich leeren'},{id:'del',icon:'trash',label:onDev(a)?'Deinstallieren':'Entfernen',warn:1}],esc(ENG[a.eng])+' · '+esc(a.model));
   if(r==='use')useAg(a.id);else if(r==='set')agSet(a);
@@ -4285,6 +4400,11 @@ function onClick(e){
   const b=e.target.closest('[data-a]');if(!b)return;const A=b.dataset.a,a=agent(),p=b.dataset.p;
   if(A==='tab'){R.tab=b.dataset.v;R.fo=null;R.arm=null;if(R.tab!=='models')R.inst=null;draw()}
   else if(A==='pick')pick();
+  else if(A==='srvacc'&&a)(async()=>{const ps=window.tbSrv?tbSrv.profiles():[];
+    if(!ps.length)return info('Noch keine Server-Verbindung','Richte zuerst im Werkzeug <b>Server</b> eine Verbindung ein (Pterodactyl-Panel oder Handy-Panel). Danach kannst du hier erlauben, dass '+esc(a.name)+' darauf zugreift.');
+    const r=await pickMenu('Zugriff auf Server',[{id:'off',icon:a.srv&&a.srv!=='off'?'x':'check',label:'Aus – kein Zugriff'},{id:'read',icon:a.srv==='read'?'check':'eye',label:'Nur ansehen – Status, Konsole, Dateien lesen, Plugins suchen'},{id:'full',icon:a.srv==='full'?'check':'server',label:'Voll – steuern, Befehle, Dateien, Plugins installieren, Server erstellen'}],
+      'Gilt für '+esc(a.name)+' und '+(a.srvP?'die Verbindung „'+esc((ps.find(p=>p.id===a.srvP)||{}).name||'?')+'“':'alle Verbindungen')+'. Bei riskanten Aktionen (Stoppen, Löschen, Installieren) fragt der Agent '+(a.srvAsk===false?'<b>nicht</b> nach':'vorher nach')+' – änderbar in den Einstellungen.');
+    if(!r)return;a.srv=r;if(r!=='off')a.tools=true;SRVC={t:0,l:null,k:''};save();toast(r==='off'?'Serverzugriff aus':r==='read'?'Serverzugriff: nur ansehen':'Serverzugriff: voll');body()})();
   else if(A==='net'&&a){a.net=!a.net;save();toast(a.net?'Internetzugriff an – der Agent darf suchen und Seiten lesen':'Internetzugriff aus – der Agent bleibt offline');body()}
   else if(A==='new'&&a){if(R.busy)return toast('Bitte warten, bis die Antwort fertig ist.');R.chat=null;delete D.lc[a.id];save();body()}
   else if(A==='hist')hist();
@@ -4346,7 +4466,7 @@ window.tbAI={
   async restore(x){let na=0,nm=0,nf=0;if(!x||typeof x!=='object')return{na,nm,nf};
     const s=v=>String(v==null?'':v),ok=id=>/^[\w-]{1,40}$/.test(id);
     (Array.isArray(x.ag)?x.ag:[]).forEach(a=>{if(!a||!ok(s(a.id))||!ENG[a.eng]||!a.model||D.ag.some(y=>y.id===a.id||(y.eng===a.eng&&y.model===a.model)))return;
-      D.ag.push({id:s(a.id),name:s(a.name).slice(0,40)||s(a.model),eng:a.eng,model:s(a.model).slice(0,200),size:s(a.size).slice(0,40),temp:+a.temp||0.7,net:!!a.net,tools:a.tools!==false,auto:!!a.auto,sys:s(a.sys).slice(0,4000),ctx:+a.ctx||0,nt:!!a.nt,t:+a.t||Date.now()});na++});
+      D.ag.push({id:s(a.id),name:s(a.name).slice(0,40)||s(a.model),eng:a.eng,model:s(a.model).slice(0,200),size:s(a.size).slice(0,40),temp:+a.temp||0.7,net:!!a.net,tools:a.tools!==false,auto:!!a.auto,sys:s(a.sys).slice(0,4000),ctx:+a.ctx||0,nt:!!a.nt,t:+a.t||Date.now(),srv:['read','full'].includes(a.srv)?a.srv:'off',srvP:s(a.srvP).slice(0,40),srvAsk:a.srvAsk!==false});na++});
     (Array.isArray(x.mem)?x.mem:[]).forEach(m=>{if(!m||!ok(s(m.id))||!m.t||D.mem.some(y=>y.id===m.id))return;D.mem.push({id:s(m.id),a:s(m.a)==='*'||ok(s(m.a))?s(m.a):'*',t:s(m.t).slice(0,300),c:+m.c||Date.now(),s:s(m.s).slice(0,30)});nm++});
     for(const f of(Array.isArray(x.files)?x.files:[])){if(!f||!ok(s(f.a))||typeof f.d!=='string'||!nP(f.p))continue;try{if(!await WS.get(f.a,f.p)){await WS.put(f.a,f.p,f.d);nf++}}catch(e){}}
     if(!D.cur&&D.ag.length)D.cur=D.ag[0].id;save();return{na,nm,nf}},
