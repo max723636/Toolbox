@@ -2164,7 +2164,7 @@ async function quickPower(id,sig){
     const r=S.res[id];if(r)r.current_state=sig==='start'?'starting':'stopping';updRow(id);setTimeout(()=>S.scr==='list'&&loadRes(),2500)}
 }
 /* ----- Server-Ansicht: Kopf, Reiter, Live-Verbindung (WebSocket) ----- */
-const TABS=[['con','Konsole','terminal','websocket.connect'],['fil','Dateien','folder','file.read'],['bak','Backups','archive','backup.read'],['sch','Zeitpläne','clock','schedule.read'],['dbs','Datenbanken','database','database.read'],['net','Netzwerk','globe','allocation.read'],['sta','Startup','sliders','startup.read'],['set','Einstellungen','edit','']];
+const TABS=[['con','Konsole','terminal','websocket.connect'],['fil','Dateien','folder','file.read'],['plg','Plugins','puzzle','file.create'],['bak','Backups','archive','backup.read'],['sch','Zeitpläne','clock','schedule.read'],['dbs','Datenbanken','database','database.read'],['net','Netzwerk','globe','allocation.read'],['sta','Startup','sliders','startup.read'],['set','Einstellungen','edit','']];
 const can=k=>!k||(S.perm||[]).includes(k)||(S.perm||[]).includes('*');
 const sid=()=>encodeURIComponent(S.srv.id);
 const SP=p=>`/servers/${sid()}${p}`;
@@ -2172,7 +2172,7 @@ const SP=p=>`/servers/${sid()}${p}`;
 async function openSrv(id){
   const s=S.list&&S.list.find(x=>x.id===id);if(!s)return;
   closeSrv();
-  Object.assign(S,{srv:Object.assign({},s),scr:'server',tab:'con',perm:null,detErr:null,blk:false,lastWhy:'',state:(S.res[id]&&S.res[id].current_state)||'offline',st:null,lines:[],buf:[],hist:[],hi:-1,ld:{},fd:null,wsState:'idle',retry:0});
+  Object.assign(S,{srv:Object.assign({},s),scr:'server',tab:'con',perm:null,detErr:null,blk:false,lastWhy:'',state:(S.res[id]&&S.res[id].current_state)||'offline',st:null,lines:[],buf:[],hist:[],hi:-1,ld:{},fd:null,mc:null,wsState:'idle',retry:0});
   drawSrv();
   await loadDetail(id);
   if(S.scr!=='server'||!S.srv||S.srv.id!==id)return;
@@ -2222,7 +2222,7 @@ function drawTop(){
 function drawTabs(){
   const t=$('#svTabs',el);if(!t||!S.perm)return;
   if(S.blk){t.hidden=true;return}
-  t.hidden=false;t.innerHTML=TABS.filter(x=>can(x[3])).map(x=>`<button class="chipb${S.tab===x[0]?' on':''}" data-a="tab" data-t="${x[0]}">${ico(x[2],16)}${x[1]}</button>`).join('');
+  t.hidden=false;t.innerHTML=TABS.filter(x=>can(x[3])&&(x[0]!=='plg'||isMc(S.srv))).map(x=>`<button class="chipb${S.tab===x[0]?' on':''}" data-a="tab" data-t="${x[0]}">${ico(x[2],16)}${x[1]}</button>`).join('');
   const on=t.querySelector('.on');if(on&&on.scrollIntoView)on.scrollIntoView({inline:'center',block:'nearest'});
 }
 function drawBody(){
@@ -2230,8 +2230,8 @@ function drawBody(){
   if(S.detErr){b.innerHTML=`<div class="banner er"><b>Server konnte nicht geladen werden.</b><br>${esc(S.detErr)}<button class="btn" data-a="retry-srv">${ico('refresh',18)}Erneut versuchen</button></div>`;return}
   if(!S.perm){b.innerHTML='<p class="empty">Lade …</p>';return}
   if(S.blk){b.innerHTML=`<p class="empty">Solange das so ist, lässt sich der Server hier nicht verwalten.</p><button class="btn" data-a="retry-srv">${ico('refresh',18)}Neu laden</button>`;return}
-  if(!TABS.find(x=>x[0]===S.tab&&can(x[3])))S.tab='set';
-  ({con:drawCon,fil:drawFil,bak:drawBak,sch:drawSch,dbs:drawDbs,net:drawNet,sta:drawSta,set:drawSet})[S.tab]();
+  if(!TABS.find(x=>x[0]===S.tab&&can(x[3])&&(x[0]!=='plg'||isMc(S.srv))))S.tab='set';
+  ({con:drawCon,fil:drawFil,plg:drawPlg,bak:drawBak,sch:drawSch,dbs:drawDbs,net:drawNet,sta:drawSta,set:drawSet})[S.tab]();
 }
 async function setTab(t){
   if(t===S.tab)return;
@@ -3013,6 +3013,110 @@ Object.assign(H,{
   'set-ren':()=>setRen(),'set-rei':()=>setRei(),
   cpy:b=>copyText(b.dataset.v)
 });
+/* ----- Minecraft: Plugins & Mods von Modrinth ----- */
+Object.assign(P,{puzzle:'<path d="M10 3a2 2 0 014 0v2h4a1 1 0 011 1v4h-2a2 2 0 000 4h2v4a1 1 0 01-1 1h-4v-2a2 2 0 00-4 0v2H6a1 1 0 01-1-1v-4h2a2 2 0 000-4H5V6a1 1 0 011-1h4z"/>'});
+const MR='https://api.modrinth.com/v2';
+const LOADERS={paper:['paper','purpur','spigot','bukkit','folia'],fabric:['fabric']};
+const LNAME={paper:'Paper/Spigot (Plugins)',fabric:'Fabric (Mods)'};
+const isMc=s=>/java|\.jar\b/i.test((s&&(s.inv||s.image))||'');
+const enc2=encodeURIComponent;
+// Art (Paper/Fabric) und Minecraft-Version eines Servers erkennen
+async function mcInfo(p,id){
+  const sp=x=>'/servers/'+enc2(id)+x;
+  const root=lst(await api('GET',sp('/files/list'),{p,q:{directory:'/'}})).map(mapF),has=n=>root.some(x=>x.name===n&&!x.file);
+  let loader=has('plugins')?'paper':has('mods')?'fabric':null,ver=null,txt=async f=>{try{return String(await api('GET',sp('/files/contents'),{p,q:{file:f},as:'text',timeout:20000})||'')}catch(e){return''}};
+  if(!loader){if(root.some(x=>/fabric/i.test(x.name)||x.name==='.fabric'))loader='fabric';else if(root.some(x=>/paper|purpur|spigot|bukkit/i.test(x.name)||x.name==='version_history.json'))loader='paper'}
+  const vh=root.some(x=>x.name==='version_history.json')?await txt('/version_history.json'):'';let m=/MC:\s*([\w.\-]+)\)/.exec(vh);if(m)ver=m[1];
+  if(!ver||!loader){const lg=await txt('/logs/latest.log');m=/Starting minecraft server version ([\w.\-]+)/.exec(lg);if(m&&!ver)ver=m[1];if(!loader&&/Paper|Purpur|Spigot|Bukkit|CraftBukkit/.test(lg))loader='paper';if(!loader&&/Fabric Loader|fabricloader/i.test(lg))loader='fabric'}
+  if(!ver){try{const v=lst(await api('GET',sp('/startup'),{p})).find(x=>/MINECRAFT_VERSION|MC_VERSION|^VERSION$/.test(x.env_variable||''));const val=v&&(v.server_value||v.default_value);if(val&&/^\d/.test(val))ver=val}catch(e){}}
+  return{loader,version:ver,dir:loader==='fabric'?'/mods':'/plugins'};
+}
+async function mrGet(u){let r;try{r=await fetch(MR+u)}catch(e){throw new ApiErr('Modrinth ist nicht erreichbar (Internet?).')}if(r.status===404)return null;if(!r.ok)throw new ApiErr('Modrinth antwortet nicht richtig ('+r.status+').');return r.json()}
+async function mrSearch(q,info,limit){
+  if(!info||!info.loader)throw new ApiErr('Auf diesem Server lassen sich keine Plugins installieren (Vanilla). Nimm Paper oder Fabric.');
+  const fac=[[info.loader==='fabric'?'project_type:mod':'project_type:plugin'],LOADERS[info.loader].map(l=>'categories:'+l)];if(info.version)fac.push(['versions:'+info.version]);
+  const j=await mrGet('/search?limit='+(limit||12)+'&index=relevance&query='+enc2(q||'')+'&facets='+enc2(JSON.stringify(fac)));
+  return(j&&j.hits||[]).map(h=>({id:h.project_id,slug:h.slug,title:h.title,desc:h.description||'',dl:h.downloads||0,icon:h.icon_url||'',author:h.author||''}))}
+async function mrVersion(project,info){
+  const l=await mrGet('/project/'+enc2(project)+'/version?loaders='+enc2(JSON.stringify(LOADERS[info.loader]))+(info.version?'&game_versions='+enc2(JSON.stringify([info.version])):''));
+  if(l===null)throw new ApiErr('„'+project+'“ gibt es auf Modrinth nicht. Suche zuerst nach dem richtigen Namen.');
+  const v=l.find(x=>x.version_type==='release')||l[0];
+  if(!v)throw new ApiErr('Für „'+project+'“ gibt es keine Version für '+(info.version?'Minecraft '+info.version+' / ':'')+LNAME[info.loader]+'.');return v}
+const base=n=>n.toLowerCase().replace(/\.jar(\.disabled)?$/,'').replace(/[-_ +]?(v|mc)?\d[\w.\-+]*$/,'');
+async function mrInstall(p,id,project,info,seen){
+  if(!info||!info.loader)throw new ApiErr('Auf diesem Server lassen sich keine Plugins installieren (Vanilla). Nimm Paper oder Fabric.');
+  seen=seen||new Set();if(seen.has(project))return[];seen.add(project);
+  const v=await mrVersion(project,info),f=v.files.find(x=>x.primary)||v.files[0];if(!f)throw new ApiErr('Die Version hat keine Datei.');
+  const sp=x=>'/servers/'+enc2(id)+x;
+  try{await api('POST',sp('/files/create-folder'),{p,json:{root:'/',name:info.dir.slice(1)}})}catch(e){}
+  let old=[];try{old=lst(await api('GET',sp('/files/list'),{p,q:{directory:info.dir}})).map(mapF).filter(x=>x.file&&/\.jar$/i.test(x.name)&&x.name!==f.filename&&base(x.name)===base(f.filename))}catch(e){}
+  await api('POST',sp('/files/pull'),{p,json:{url:f.url,directory:info.dir,filename:f.filename,use_header:false,foreground:true},timeout:180000});
+  if(old.length){try{await api('POST',sp('/files/delete'),{p,json:{root:info.dir,files:old.map(x=>x.name)}})}catch(e){}}
+  const out=[{project,file:f.filename,version:v.version_number,replaced:old.map(x=>x.name)}];
+  for(const d of v.dependencies||[])if(d.dependency_type==='required'&&d.project_id){try{out.push(...await mrInstall(p,id,d.project_id,info,seen))}catch(e){out.push({project:d.project_id,error:fe(e)})}}
+  return out}
+async function mcList(p,id,info){try{return lst(await api('GET','/servers/'+enc2(id)+'/files/list',{p,q:{directory:info.dir}})).map(mapF).filter(x=>x.file&&/\.jar(\.disabled)?$/i.test(x.name)).sort((a,b)=>a.name.localeCompare(b.name))}catch(e){return[]}}
+/* --- Reiter „Plugins“ --- */
+function drawPlg(){
+  const b=$('#svB',el);if(!b)return;const M=S.mc||(S.mc={info:null,err:null,q:'',res:null,inst:null,busy:{},hint:false});
+  if(M.err){b.innerHTML=`<div class="banner er">${esc(M.err)}<button class="btn" data-a="mc-re">${ico('refresh',18)}Erneut versuchen</button></div>`;return}
+  if(!M.info){b.innerHTML='<p class="empty">Erkenne Minecraft-Version …</p>';if(!M.ld){M.ld=1;mcInfo(cur(),S.srv.id).then(i=>{M.info=i;return mcList(cur(),S.srv.id,i)}).then(l=>{M.inst=l}).catch(e=>{M.err=fe(e)}).finally(()=>{M.ld=0;if(S.tab==='plg')drawPlg()})}return}
+  const I=M.info,ok=!!I.loader,names=new Set((M.inst||[]).map(x=>base(x.name)));
+  b.innerHTML=`${hd(I.loader==='fabric'?'Mods':'Plugins',M.inst?M.inst.length:null,`<button class="iconbtn" data-a="mc-set" aria-label="Art und Version ändern">${ico('sliders',18)}</button>`)}
+  <p class="sv-sub">${ok?esc(LNAME[I.loader]):'Vanilla – keine Plugins möglich'} · Minecraft ${esc(I.version||'unbekannt')} · Ordner ${esc(I.dir)}</p>
+  ${ok?'':'<div class="banner">Für Plugins brauchst du einen <b>Paper</b>-Server (oder Spigot/Purpur), für Mods <b>Fabric</b>. Erkennt die App die Art falsch, stell sie über das Regler-Symbol ein.</div>'}
+  ${M.hint?`<div class="banner ok">Installiert! Plugins werden erst nach einem <b>Neustart</b> geladen.<button class="btn" data-a="mc-rs">${ico('refresh',18)}Server jetzt neu starten</button></div>`:''}
+  ${ok?`<div class="addrow"><input id="mcq" placeholder="${I.loader==='fabric'?'Mod':'Plugin'} suchen, z. B. LuckPerms, EssentialsX …" value="${esc(M.q)}" autocomplete="off"><button class="btn pri" data-a="mc-s" aria-label="Suchen">${ico('globe',18)}</button></div>
+  ${M.res==='…'?'<p class="st">Suche auf Modrinth …</p>':Array.isArray(M.res)?(M.res.length?`<div class="list">${M.res.map(r=>`<div class="item"><span class="ib sm" style="overflow:hidden">${r.icon?`<img src="${esc(r.icon)}" alt="" width="36" height="36" loading="lazy" style="display:block">`:ico('puzzle',18)}</span><span class="tx"><b>${esc(r.title)}</b><small>${esc(r.desc.slice(0,110))} · ↓ ${fmtN(r.dl)}</small></span>${names.has(base(r.slug))||M.busy[r.id]==='ok'?`<span class="tag g">✓</span>`:M.busy[r.id]?'<span class="st">…</span>':`<button class="iconbtn" data-a="mc-i" data-i="${esc(r.slug)}" data-k="${esc(r.id)}">${ico('down',16)}Laden</button>`}</div>`).join('')}</div>`:'<p class="st">Nichts gefunden (für diese Version).</p>'):'<p class="st">Plugins und Mods kommen von <b>Modrinth</b> (kostenlos). Es werden nur Versionen angezeigt, die zu deinem Server passen; nötige Abhängigkeiten werden mitinstalliert.</p>'}`:''}
+  ${hd('Installiert',M.inst?M.inst.length:null)}
+  <div class="list">${(M.inst||[]).map(x=>`<div class="item"><span class="tx"><b>${esc(x.name)}</b><small>${fmtB(x.size)}${/\.disabled$/.test(x.name)?' · deaktiviert':''}</small></span><button class="iconbtn" data-a="mc-del" data-n="${esc(x.name)}" aria-label="Entfernen">${ico('trash',18)}</button></div>`).join('')}</div>
+  ${M.inst&&!M.inst.length?'<p class="empty">Noch nichts installiert.</p>':''}`;
+}
+const fmtN=n=>n>=1e6?(n/1e6).toFixed(1).replace('.',',')+' Mio.':n>=1e3?Math.round(n/1e3)+' Tsd.':String(n);
+Object.assign(H,{
+  'mc-re':()=>{S.mc=null;drawPlg()},
+  'mc-s':async()=>{const M=S.mc,q=($('#mcq',el)||{}).value||'';M.q=q;M.res='…';drawPlg();try{M.res=await mrSearch(q,M.info)}catch(e){M.res=null;info('Suche fehlgeschlagen',esc(fe(e)))}if(S.tab==='plg')drawPlg()},
+  'mc-i':async b=>{const M=S.mc,k=b.dataset.k;M.busy[k]=1;drawPlg();
+    try{const r=await mrInstall(cur(),S.srv.id,b.dataset.i,M.info);M.busy[k]='ok';M.hint=true;const er=r.filter(x=>x.error);toast('Installiert: '+r.filter(x=>!x.error).map(x=>x.file).join(', '));if(er.length)info('Teilweise installiert','Diese Abhängigkeiten fehlen noch:<br>'+er.map(x=>esc(x.project+': '+x.error)).join('<br>'))}
+    catch(e){delete M.busy[k];info('Installation fehlgeschlagen',esc(fe(e)))}M.inst=await mcList(cur(),S.srv.id,M.info);if(S.tab==='plg')drawPlg()},
+  'mc-del':async b=>{const M=S.mc,n=b.dataset.n;if(!await yes('Entfernen?','<b>'+esc(n)+'</b> wird gelöscht. Wirkt nach einem Neustart.','Entfernen',true))return;
+    if(await act(()=>api('POST',SP('/files/delete'),{json:{root:M.info.dir,files:[n]}}),'Entfernt')){M.inst=await mcList(cur(),S.srv.id,M.info);M.hint=true;drawPlg()}},
+  'mc-rs':async()=>{S.mc.hint=false;await act(()=>api('POST',SP('/power'),{json:{signal:'restart'}}),'Neustart wird ausgeführt');drawPlg()},
+  'mc-set':async()=>{const M=S.mc;const v=await ask({title:'Art und Version',desc:'Normalerweise erkennt die App das selbst. Stell es hier ein, falls nicht.',fields:[{id:'l',type:'select',label:'Art',value:M.info.loader||'',opts:[['paper','Paper/Spigot/Purpur (Plugins)'],['fabric','Fabric (Mods)'],['','Vanilla (keine Plugins)']]},{id:'v',label:'Minecraft-Version',value:M.info.version||'',ph:'z. B. 1.21.11'}],ok:'Übernehmen'});
+    if(!v)return;M.info={loader:v.l||null,version:v.v.trim()||null,dir:v.l==='fabric'?'/mods':'/plugins'};M.res=null;M.inst=await mcList(cur(),S.srv.id,M.info);drawPlg()}
+});
+/* ----- Brücke für andere Teile der App (z. B. AI Agents) ----- */
+const profById=pid=>{const d=Object.assign({p:[],px:null},store.get(K,{}));if(d.px)DB.px=d.px;const p=d.p.find(x=>x.id===pid);if(!p)throw new ApiErr('Diese Server-Verbindung gibt es nicht mehr.');return p};
+async function srvAll(p){const all=[];for(let page=1;page<=10;page++){const r=await api('GET','/',{p,q:{page,per_page:100}});all.push(...lst(r));const pg=r.meta&&r.meta.pagination;if(!pg||page>=pg.total_pages)break}return all.map(mapSrv)}
+// Konsole kurz mitlesen (optional: vorher einen Befehl senden und die Antwort sammeln)
+async function conRead(p,id,o){
+  o=o||{};const r=await api('GET','/servers/'+enc2(id)+'/websocket',{p});const d=r.data||att(r);
+  return new Promise((res,rej)=>{let ws,lines=[],st=null,authed=false,mark=0,t1,done=false;
+    const fin=()=>{if(done)return;done=true;clearTimeout(t1);try{ws.close()}catch(e){}res({lines:lines.slice(o.cmd?mark:0),state:st})};
+    const fail=m=>{if(done)return;done=true;clearTimeout(t1);try{ws.close()}catch(e){}rej(new ApiErr(m))};
+    try{ws=new WebSocket(wsU(d.socket,p))}catch(e){return rej(new ApiErr('Keine Verbindung zur Konsole.'))}
+    t1=setTimeout(()=>fail('Die Konsole antwortet nicht.'),10000);
+    ws.onopen=()=>ws.send(JSON.stringify({event:'auth',args:[d.token]}));
+    ws.onmessage=ev=>{let m;try{m=JSON.parse(ev.data)}catch(e){return}const x=(m.args||[])[0];
+      if(m.event==='auth success'){authed=true;clearTimeout(t1);ws.send(JSON.stringify({event:'send logs',args:[null]}));
+        setTimeout(async()=>{mark=lines.length;if(o.cmd){try{await api('POST','/servers/'+enc2(id)+'/command',{p,json:{command:o.cmd}})}catch(e){return fail(fe(e))}}t1=setTimeout(fin,o.ms||(o.cmd?3000:300))},800)}
+      else if(m.event==='status')st=x;
+      else if(/^(console output|daemon message|install output|daemon error)$/.test(m.event))lines.push(String(x).replace(/\x1b\[[0-9;?]*[A-Za-z]/g,'').replace(/\r/g,''));
+      else if(m.event==='jwt error')fail('Konsole: Anmeldung fehlgeschlagen.')};
+    ws.onerror=()=>{};ws.onclose=()=>{if(!authed)fail('Keine Verbindung zur Konsole (bei fremden Hostern hilft „Über Vermittler“).');else fin()}});
+}
+window.tbSrv={
+  profiles:()=>Object.assign({p:[]},store.get(K,{})).p.map(x=>({id:x.id,name:x.name,host:hostOf(x.url),admin:!!x.akey,hp:!!x.hp})),
+  servers:async pid=>{const p=profById(pid),l=await srvAll(p);const rs=await pool(l,4,async s=>att(await api('GET','/servers/'+enc2(s.id)+'/resources',{p})));return l.map((s,i)=>Object.assign(s,{res:rs[i]||null}))},
+  api:(pid,m,path,o)=>api(m,path,Object.assign({},o,{p:profById(pid)})),
+  aapi:(pid,m,path,o)=>aapi(m,path,Object.assign({},o,{p:profById(pid)})),
+  console:(pid,id,o)=>conRead(profById(pid),id,o),
+  mcInfo:(pid,id)=>mcInfo(profById(pid),id),
+  mrSearch,
+  mrInstall:(pid,id,project,info)=>mrInstall(profById(pid),id,project,info),
+  mcList:(pid,id,info)=>mcList(profById(pid),id,info)
+};
+
 /* ----- Admin-Bereich (Application API, Schlüssel ptla_) ----- */
 Object.assign(P,{shield:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0M16 4.5a3.5 3.5 0 010 7M18 14.5a6 6 0 013.5 5.5"/>'});
 async function aapi(method,path,o){
@@ -3381,6 +3485,7 @@ function mount(root){
       else if(e.key==='ArrowDown'){e.preventDefault();histNav(1)}
     }else if((t.id==='pu'||t.id==='pk'||t.id==='pn')&&e.key==='Enter'){e.preventDefault();savePf()}
     else if(t.id==='pxu'&&e.key==='Enter'){e.preventDefault();testPx()}
+    else if(t.id==='mcq'&&e.key==='Enter'){e.preventDefault();H['mc-s']()}
   };
   if(!cur()){newProf();return}
   draw();loadList();

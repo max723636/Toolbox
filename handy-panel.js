@@ -379,7 +379,9 @@ async function files(req, res, s, sub, q) {
   if (sub === '/pull' && M === 'POST') {
     let u; try { u = new URL(j.url) } catch (e) { bad('Ungültige Adresse.', 'url') } if (!/^https?:$/.test(u.protocol)) bad('Nur http(s).', 'url');
     const d = safe(s, j.directory || base), name = (j.filename || decodeURIComponent(path.posix.basename(u.pathname)) || 'download').replace(/[\/\\]/g, '_');
-    out(s, 'Lade ' + u.href + ' …', 'daemon'); download(u.href, path.join(d, name), l => { }).then(() => out(s, 'Fertig geladen: ' + name, 'daemon'), e => out(s, 'Laden fehlgeschlagen: ' + e.message, 'error'));
+    await fsp.mkdir(d, { recursive: true }); out(s, 'Lade ' + u.href + ' …', 'daemon');
+    const job = download(u.href, path.join(d, name), l => { }).then(() => out(s, 'Fertig geladen: ' + name, 'daemon'), e => { out(s, 'Laden fehlgeschlagen: ' + e.message, 'error'); throw e });
+    if (j.foreground) { try { await job } catch (e) { throw new HErr(502, 'Download fehlgeschlagen: ' + e.message) } } else job.catch(() => { });
     return send(res, 204);
   }
   throw new HErr(404, 'Nicht gefunden.');
