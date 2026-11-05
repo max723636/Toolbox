@@ -157,6 +157,7 @@ input[type=range]{padding:0;border:0;background:none;height:30px;accent-color:va
 .pxi{display:flex;align-items:center;gap:10px;margin-top:10px;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;background:var(--cd);font-size:13px}
 .pxi svg{flex:none;color:var(--mu)}.pxi span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pxi .btn{width:auto;margin:0;padding:6px 12px;font-size:13px}
+.hpc{display:flex;gap:8px;align-items:flex-start;margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:10px;background:var(--cd)}.hpc code{flex:1;min-width:0;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;word-break:break-all;user-select:all}.hpc .btn{width:auto;margin:0;padding:6px 10px;flex:none}
 /* AI Agents */
 .ai-ag{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 12px;font:inherit;color:inherit;cursor:pointer;margin-top:4px}
 .ai-ag .tx small{white-space:nowrap}
@@ -744,13 +745,32 @@ const UI=(()=>{
   return{dlg,ask,yes,info,menu,coarse};
 })();
 const loadScript=u=>new Promise((res,rej)=>{const s=document.createElement('script');s.src=u;s.onload=()=>res();s.onerror=()=>{s.remove();rej(Error('Laden fehlgeschlagen: '+u))};document.head.append(s)});
+/* QR-Code mit der Kamera scannen (für Chat, Handy-Panel …): o.hint = Hinweis, o.ok(text) = passt der Inhalt? */
+UI.scanQR=async function(o){
+  o=o||{};const JQ='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js',tk=t=>typeof t==='string'&&(!o.ok||o.ok(t));
+  if(!navigator.mediaDevices){UI.info('Keine Kamera','Hier ist keine Kamera verfügbar. Gib den Code einfach ein.');return null}
+  let stop=false,stream=null;
+  const d=UI.dlg(`<h3>QR-Code scannen</h3><div class="qrv"><video playsinline muted></video><i></i></div><p class="st" id="qs">${o.hint||'Halte die Kamera auf den QR-Code.'}</p><button class="btn" data-d="no">Abbrechen</button>`,(a,b,close)=>close(null));
+  d.done.then(()=>{stop=true;if(stream)stream.getTracks().forEach(t=>t.stop())});
+  const er=m=>{const q=d.box.querySelector('#qs');q.className='st err';q.textContent=m};
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false})}catch(e){if(!stop)er('Kamera nicht erlaubt oder nicht verfügbar. Gib den Code stattdessen ein.');return d.done}
+  if(stop){stream.getTracks().forEach(t=>t.stop());return d.done}
+  const v=d.box.querySelector('video');v.srcObject=stream;try{await v.play()}catch(e){}
+  let det=null;try{if('BarcodeDetector' in window&&(await BarcodeDetector.getSupportedFormats()).includes('qr_code'))det=new BarcodeDetector({formats:['qr_code']})}catch(e){}
+  if(!det){try{await loadScript(JQ)}catch(e){er('Der Scanner konnte nicht geladen werden. Gib den Code ein.');return d.done}}
+  const cv=document.createElement('canvas'),cx=cv.getContext('2d',{willReadFrequently:true});
+  (async()=>{let warned=0;while(!stop){await new Promise(r=>setTimeout(r,220));if(stop||!v.videoWidth)continue;let t=null;
+    try{if(det){const r=await det.detect(v);if(r&&r[0])t=r[0].rawValue}else{const s=Math.min(1,640/v.videoWidth);cv.width=Math.round(v.videoWidth*s);cv.height=Math.round(v.videoHeight*s);cx.drawImage(v,0,0,cv.width,cv.height);const r=window.jsQR(cx.getImageData(0,0,cv.width,cv.height).data,cv.width,cv.height);if(r)t=r.data}}catch(e){}
+    if(t&&tk(t)){try{navigator.vibrate&&navigator.vibrate(8)}catch(e){}d.close(t);return}
+    if(t&&!warned){warned=1;er('Das ist nicht der richtige QR-Code. '+(o.hint||'').replace(/<[^>]+>/g,''))}}})();
+  return d.done};
 
 /* ---------- Chat: Kontakte, Verlauf, Bilder, Dateien und Sprachnachrichten (direkt per WebRTC) ----------
    Verbindungsaufbau über den kostenlosen PeerJS-Vermittlungsdienst (nur Kurzcode → Verbindung).
    Die Nachrichten selbst gehen direkt und verschlüsselt von Gerät zu Gerät. Verlauf bleibt nur auf dem Gerät. */
 (function(){
 "use strict";
-const PJ='https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.5/peerjs.min.js',JQ='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+const PJ='https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.5/peerjs.min.js';
 const K='tb_chat2',ABC='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',CH_SZ=16000,MAXF=100*1048576;
 const rnd=n=>[...crypto.getRandomValues(new Uint8Array(n))].map(b=>ABC[b%32]).join('');
 let C=Object.assign({me:null,ct:[],auto:true},store.get(K,{}));
@@ -936,21 +956,7 @@ function playVoice(m){
   a.ontimeupdate=a.onplay=a.onpause=ui;a.onended=()=>{a.currentTime=0;ui();AU.id=null};a.play().catch(()=>toast('Abspielen nicht möglich'))}
 
 /* ----- QR-Code scannen ----- */
-async function scanQR(){
-  if(!navigator.mediaDevices){UI.info('Keine Kamera','Hier ist keine Kamera verfügbar. Gib den Code einfach ein.');return null}
-  let stop=false,stream=null;
-  const d=UI.dlg(`<h3>QR-Code scannen</h3><div class="qrv"><video playsinline muted></video><i></i></div><p class="st" id="qs">Halte die Kamera auf den QR-Code deines Kontakts (in seinem Chat unter „Mein Code“).</p><button class="btn" data-d="no">Abbrechen</button>`,(a,b,close)=>close(null));
-  d.done.then(()=>{stop=true;if(stream)stream.getTracks().forEach(t=>t.stop())});
-  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false})}catch(e){if(!stop){const q=d.box.querySelector('#qs');q.className='st err';q.textContent='Kamera nicht erlaubt oder nicht verfügbar. Gib den Code stattdessen ein.'}return d.done}
-  if(stop){stream.getTracks().forEach(t=>t.stop());return d.done}
-  const v=d.box.querySelector('video');v.srcObject=stream;try{await v.play()}catch(e){}
-  let det=null;try{if('BarcodeDetector' in window&&(await BarcodeDetector.getSupportedFormats()).includes('qr_code'))det=new BarcodeDetector({formats:['qr_code']})}catch(e){}
-  if(!det){try{await loadScript(JQ)}catch(e){const q=d.box.querySelector('#qs');q.className='st err';q.textContent='Der Scanner konnte nicht geladen werden. Gib den Code ein.';return d.done}}
-  const cv=document.createElement('canvas'),cx=cv.getContext('2d',{willReadFrequently:true});
-  (async()=>{while(!stop){await sleep(220);if(stop||!v.videoWidth)continue;let t=null;
-    try{if(det){const r=await det.detect(v);if(r&&r[0])t=r[0].rawValue}else{const s=Math.min(1,640/v.videoWidth);cv.width=Math.round(v.videoWidth*s);cv.height=Math.round(v.videoHeight*s);cx.drawImage(v,0,0,cv.width,cv.height);const r=window.jsQR(cx.getImageData(0,0,cv.width,cv.height).data,cv.width,cv.height);if(r)t=r.data}}catch(e){}
-    if(t&&normCode(t)){vib();d.close(t);return}}})();
-  return d.done}
+const scanQR=()=>UI.scanQR({hint:'Halte die Kamera auf den QR-Code deines Kontakts (in seinem Chat unter „Mein Code“).',ok:normCode});
 
 /* ----- Oberfläche ----- */
 const V={scr:'list',code:null,msgs:[],el:document.createElement('div'),urls:new Map(),lim:150};
@@ -1892,13 +1898,26 @@ function mkErr(status,data,px){
 }
 function netErr(e,p){
   if(e&&e.name==='AbortError')return new ApiErr(e.tmo?'Zeitüberschreitung: keine Antwort vom '+(p.via==='px'?'Vermittler':'Panel')+'.':'Abgebrochen.',{status:0,abort:true,net:true});
+  if(p.hp)return new ApiErr('Das Handy-Panel ist nicht erreichbar. Läuft es? Auf dem Gerät: „hp status“ (starten: „hp hintergrund“). Für unterwegs braucht es den Fernzugriff: „hp fernzugriff an“.',{status:0,net:true});
   if(p.via==='px')return new ApiErr('Der Vermittler ist nicht erreichbar. Stimmt seine Adresse (Verbindung → Vermittler)? Gibt es Internet?',{status:0,net:true});
   return new ApiErr('Keine Verbindung zum Panel. Entweder gibt es kein Internet, die Adresse stimmt nicht – oder das Panel erlaubt Zugriffe aus Apps nicht (dann den Zugriff auf „Über Vermittler“ stellen).',{status:0,net:true,cors:true});
 }
 
 /* ----- Netzwerk: direkt oder über den Vermittler ----- */
 const pxU=()=>DB.px&&DB.px.url?DB.px.url.replace(/\/+$/,''):'';
+// Handy-Panel: geht eine Verbindung verloren (z. B. neue Fernzugriff-Adresse), sucht die App die neue und wiederholt die Anfrage
 async function raw(p,method,url,o){
+  const b0=p&&p.url;
+  try{return await raw0(p,method,url,o)}
+  catch(e){
+    if(!(p&&p.hp&&p.via!=='px'&&e&&e.net&&!e.user&&b0&&url.startsWith(b0)))throw e;
+    const nu=p.url!==b0?p.url:await hpHeal(p);
+    if(!nu||nu===b0)throw e;
+    return raw0(p,method,nu+url.slice(b0.length),o);
+  }
+}
+const lanHttp=u=>/^http:\/\/(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(u);
+async function raw0(p,method,url,o){
   o=o||{};const ac=new AbortController(),tmo=o.timeout===0?0:(o.timeout||25000);let tt;
   if(o.signal)o.signal.addEventListener('abort',()=>ac.abort());
   if(tmo)tt=setTimeout(()=>{ac._t=1;ac.abort()},tmo);
@@ -1907,13 +1926,14 @@ async function raw(p,method,url,o){
       const env=JSON.stringify({k:DB.px.key,u:url,m:method,h:o.headers||{},b:typeof o.body==='string'?o.body:undefined,o:o.origin});
       return await fetch(pxU()+'/',{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:env,signal:ac.signal});
     }
-    return await fetch(url,{method,headers:o.headers||{},body:o.body,signal:ac.signal});
-  }catch(e){if(ac._t)e.tmo=1;throw netErr(e,p)}
+    const fo={method,headers:o.headers||{},body:o.body,signal:ac.signal};if(lanHttp(url))fo.targetAddressSpace='local'; // Chrome: Zugriff ins WLAN erlauben
+    return await fetch(url,fo);
+  }catch(e){if(ac._t)e.tmo=1;const x=netErr(e,p);if(o.signal&&o.signal.aborted&&!ac._t)x.user=1;throw x}
   finally{clearTimeout(tt)}
 }
 async function api(method,path,o){
   o=o||{};const p=o.p||cur();if(!p)throw new ApiErr('Keine Verbindung ausgewählt.');
-  let url=p.url+'/api/client'+path;if(o.q)url+=(path.includes('?')?'&':'?')+q2(o.q);
+  let url=p.url+(o.base||'/api/client')+path;if(o.q)url+=(path.includes('?')?'&':'?')+q2(o.q);
   const headers={Authorization:'Bearer '+p.key,Accept:'Application/vnd.pterodactyl.v1+json'};let body;
   if(o.json!==undefined){headers['Content-Type']='application/json';body=JSON.stringify(o.json)}
   else if(o.text!==undefined){headers['Content-Type']='text/plain';body=o.text}
@@ -1988,7 +2008,7 @@ function drawProf(){
   const f=S.pf,np=!DB.px||!DB.px.url;
   el.innerHTML=`${head(f.id?'Verbindung bearbeiten':'Neue Verbindung',DB.p.length?'prof-x':'')}
   ${DB.p.length?'':'<p class="st">Verwalte deine Server aus einem Pterodactyl-Panel: Konsole, Dateien, Backups, Zeitpläne und mehr. Du brauchst nur die Adresse deines Panels und einen persönlichen API-Schlüssel.</p>'}
-  ${f.id?'':`<div class="banner ok"><b>Kein eigenes Panel?</b> Mit dem <b>Handy-Panel</b> laufen Server (z. B. Minecraft) direkt auf deinem Handy – über die App Termux, ohne Docker.<button class="btn" data-a="hp-open">${ico('server',18)}Handy-Panel einrichten</button></div>`}
+  ${f.id?'':`<div class="banner ok"><b>Kein eigenes Panel?</b> Mit dem <b>Handy-Panel</b> laufen Server (z. B. Minecraft) auf deinem eigenen Gerät – Handy (Termux), Windows, Linux oder Mac. Ein Befehl zum Installieren, ohne Docker.<button class="btn" data-a="hp-open">${ico('server',18)}Handy-Panel einrichten / verbinden</button></div>`}
   <label>Name (frei wählbar)</label><input id="pn" value="${esc(f.name)}" placeholder="z. B. Mein Hoster" autocomplete="off">
   <label>Panel-Adresse</label><input id="pu" value="${esc(f.url)}" placeholder="https://panel.beispiel.de" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false">
   <label>API-Schlüssel</label><div class="addrow" style="margin-top:0"><input id="pk" type="password" value="${esc(f.key)}" placeholder="ptlc_…" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn" data-a="eye" aria-label="Anzeigen">${ico('eye',18)}</button></div>
@@ -3344,41 +3364,213 @@ Object.assign(H,{
   'ad-guide':()=>info('Pterodactyl selbst hosten',GUIDE)
 });
 
-/* ----- Handy-Panel (Termux) einrichten ----- */
-const hpUrl=()=>{try{return new URL('handy-panel.js',location.href).href}catch(e){return 'handy-panel.js'}};
+/* ----- Handy-Panel: einrichten (Handy, Windows, Linux, Mac), koppeln, Fernzugriff, verwalten ----- */
+const APPB='https://max723636.github.io/Toolbox/';
+// Adresse dieser App (für Installer und Update); in der APK oder lokal als Datei: die öffentliche Seite
+const appBase=()=>{try{const u=new URL('./',location.href);if((u.protocol==='https:'&&!/appassets|androidplatform/.test(u.host))||/^(localhost|127\.0\.0\.1)$/.test(u.hostname))return u.href}catch(e){}return APPB};
+const hpUrl=()=>appBase()+'handy-panel.js';
+const HPOS=[['android','Android'],['win','Windows'],['linux','Linux'],['mac','Mac']];
+const myOS=()=>{const u=navigator.userAgent;return /Android/i.test(u)?'android':/iPhone|iPad|iPod/i.test(u)?'ios':/Windows/i.test(u)?'win':/Mac OS X|Macintosh/i.test(u)?'mac':/Linux|X11|CrOS/i.test(u)?'linux':'android'};
+const sameOS=p=>({android:'android',win:'win32',mac:'darwin',linux:'linux'})[myOS()]===p;
+function hpCmd(os,o){
+  const b=appBase(),own=b!==APPB;o=o||{};
+  if(os==='win')return(o.fern?'$env:FERN=1; ':'')+(o.java?'$env:JAVA=1; ':'')+(own?"$env:APP='"+b+"'; ":'')+'irm '+b+'install.ps1 | iex';
+  return'curl -fsSL '+b+'install.sh | '+(o.fern?'FERN=1 ':'')+(o.java?'JAVA=1 ':'')+(own?'APP='+b+' ':'')+'sh';
+}
+const isLoop=u=>{try{return /^(127\.\d+\.\d+\.\d+|localhost|\[::1\])$/i.test(new URL(u).hostname)}catch(e){return false}};
+const isPriv=u=>{try{const h=new URL(u).hostname;return /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.)/.test(h)||/\.(local|lan|home|fritz\.box)$/i.test(h)}catch(e){return false}};
+// Von einer https-Seite aus blockiert jeder Browser http-Adressen im Internet („gemischte Inhalte“)
+const hpBlocked=u=>location.protocol==='https:'&&/^http:/i.test(u)&&!isLoop(u)&&!isPriv(u);
+const MIXED='Diese App läuft über <b>https</b> (verschlüsselt). Browser verbieten ihr deshalb den Zugriff auf unverschlüsselte <b>http://</b>-Adressen im Internet, z. B. <code>http://84.…:8080</code> – auch wenn der Port im Router freigegeben ist. Das lässt sich in der App nicht abschalten.<br><br><b>Die Lösung: Fernzugriff.</b> Auf dem Gerät mit dem Panel <code>hp fernzugriff an</code> eingeben (oder unten in „Panel verwalten“ einschalten). Das Panel bekommt dann eine sichere https-Adresse (kostenloser Cloudflare-Tunnel) – ganz ohne Portfreigabe und feste IP. Ändert sich die Adresse, findet die App sie selbst wieder.';
+// Verbindungs-Code „HP1…“ (auch als Link …#hp=HP1… oder als QR-Code)
+function hpParse(t){
+  t=String(t||'').trim();const m=/[#&?]hp=([A-Za-z0-9_-]+)/.exec(t);if(m)t=m[1];t=t.replace(/\s+/g,'');
+  if(!/^HP1[A-Za-z0-9_-]{20,}$/.test(t))return null;
+  try{const j=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(t.slice(3).replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0))));return j&&typeof j.k==='string'&&j.k?j:null}catch(e){return null}
+}
+const hpName=j=>{const n=String(j.n||'').trim();return /^(localhost|localhost\.localdomain)?$/i.test(n)?(j.p==='android'?'Handy-Panel':'Handy-Panel ('+(({win32:'Windows',darwin:'Mac',linux:'Linux'})[j.p]||'PC')+')'):'Handy-Panel · '+n.slice(0,30)};
+// Prüfen, ob unter einer Adresse ein Handy-Panel mit diesem Schlüssel antwortet
+async function hpTry(u,key,tmo){if(!u||hpBlocked(u))return false;try{await api('GET','/',{p:{id:'t',url:u,key,via:'direct'},timeout:tmo||7000});return true}catch(e){return e&&e.status===401?'key':false}}
+async function hpInfo(p){return api('GET','',{p,base:'/api/handy/info',timeout:12000})}
+// Neue Fernzugriff-Adresse aus der verschlüsselten Nachricht des Panels (ntfy.sh) holen
+async function hpNtfy(key){
+  const en=new TextEncoder(),h=async t=>new Uint8Array(await crypto.subtle.digest('SHA-256',en.encode(t)));
+  const topic='tbhp-'+[...await h('topic:'+key)].map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,32);
+  const ac=new AbortController(),tt=setTimeout(()=>ac.abort(),10000);
+  try{
+    const r=await fetch('https://ntfy.sh/'+topic+'/json?poll=1&since=24h',{signal:ac.signal,cache:'no-store'});if(!r.ok)return null;
+    const k=await crypto.subtle.importKey('raw',await h('seal:'+key),'AES-GCM',false,['decrypt']);let best=null;
+    for(const l of (await r.text()).split('\n')){try{const m=JSON.parse(l);if(m.event!=='message')continue;const b=Uint8Array.from(atob(m.message),c=>c.charCodeAt(0));
+      const o=JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:b.slice(0,12)},k,b.slice(12))));
+      if(/^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(o.u)&&(!best||o.t>best.t))best=o}catch(e){}}
+    return best?best.u:null;
+  }catch(e){return null}finally{clearTimeout(tt)}
+}
+// Verbindung verloren? Andere bekannte Adressen probieren und die neue Fernzugriff-Adresse suchen
+const HEAL=new Map();
+function hpHeal(p){
+  const q=DB.p.find(x=>x.id===p.id);if(!q||!q.hp)return Promise.resolve(null);
+  const st=HEAL.get(q.id)||{};HEAL.set(q.id,st);if(st.pr)return st.pr;
+  if(Date.now()-(st.t||0)<20000)return Promise.resolve(null);
+  st.t=Date.now();
+  st.pr=(async()=>{try{
+    const seen=new Set([q.url]),ok=async u=>{if(!u||seen.has(u))return false;seen.add(u);return await hpTry(u,q.key,6000)===true};
+    let u=null;
+    for(const c of [q.hpr,...(q.hpa||[])])if(await ok(c)){u=c;break}
+    if(!u){const r=await hpNtfy(q.key);if(r&&await ok(r)){u=r;q.hpr=r}}
+    if(!u&&q.hpLoc&&await ok(q.hpl))u=q.hpl;
+    if(u){q.url=u;save();toast('Handy-Panel unter neuer Adresse gefunden')}
+    return u;
+  }finally{st.pr=null}})();
+  return st.pr;
+}
+// Koppeln: Adressen aus dem Code der Reihe nach probieren. o.scan = per Kamera (also anderes Gerät)
+async function hpPair(code,o){
+  o=o||{};const j=typeof code==='string'?hpParse(code):code;
+  if(!j)return{err:'Das ist kein gültiger Verbindungs-Code. Er beginnt mit <b>HP1</b> – das Panel zeigt ihn mit <code>hp verbinden</code>.'};
+  const loc=j.l&&!o.scan,first=loc&&sameOS(j.p);
+  const cands=[...new Set([...(first?[j.l]:[]),...(j.r?[j.r]:[]),...(j.a||[]),...(loc&&!first?[j.l]:[])])].filter(Boolean);
+  let url=null,bad=0;
+  for(const u of cands){if(o.log)o.log('Probiere '+hostOf(u)+' …');const r=await hpTry(u,j.k,u===j.l?5000:9000);if(r===true){url=u;break}if(r==='key')bad=1}
+  if(!url){
+    if(bad)return{err:'Der Schlüssel im Code passt nicht (mehr). Hole einen neuen Code mit <code>hp verbinden</code>.'};
+    if(!j.r)return{err:o.scan||!sameOS(j.p)?'Das Panel ist von hier aus nicht erreichbar. Für ein anderes Gerät braucht es den <b>Fernzugriff</b>: auf dem Panel-Gerät <code>hp fernzugriff an</code> eingeben und den neuen QR-Code scannen.':'Keine Verbindung. Läuft das Panel? (<code>hp status</code>, starten mit <code>hp hintergrund</code>)',far:1};
+    return{err:'Keine Verbindung zum Panel. Läuft es noch? Auf dem Gerät: <code>hp status</code> – der Fernzugriff braucht dort Internet.'};
+  }
+  const old=DB.p.find(x=>x.hp&&(x.key===j.k||x.url===url));
+  const pr=old||{id:uid(),name:hpName(j),via:'direct',hp:1};
+  Object.assign(pr,{url,key:j.k,akey:j.k,hpl:j.l||pr.hpl||null,hpr:j.r||null,hpa:j.a||[],hpLoc:pr.hpLoc||url===j.l});
+  if(!old)DB.p.push(pr);DB.cur=pr.id;save();
+  try{const i=await hpInfo(pr);if(i&&i.tunnel&&i.tunnel.url){pr.hpr=i.tunnel.url;save()}}catch(e){}
+  return{p:pr,isNew:!old};
+}
+async function hpPairUI(code,o){
+  o=o||{};const d=UI.dlg(`<h3>Handy-Panel verbinden</h3><div class="diag" id="hpd">${dg('..','Verbinde …')}</div><button class="btn" data-d="no">Abbrechen</button>`,(a,b,close)=>close(null));
+  const box=d.box.querySelector('#hpd'),r=await hpPair(code,{scan:o.scan,log:t=>{box.innerHTML=dg('..',esc(t))}});
+  if(!r.p){box.innerHTML=dg('er','Nicht verbunden',r.err);const b=d.box.querySelector('[data-d=no]');b.textContent='Schließen';return false}
+  d.close(true);S.hp=null;S.list=null;S.listErr=null;S.res={};S.scr='list';draw();await loadList();
+  toast('✓ '+r.p.name+' verbunden');if(r.isNew&&S.list&&!S.list.length){openAdmin();adNew()}return true;
+}
+async function hpCodeAsk(){
+  const v=await ask({title:'Verbindungs-Code einfügen',desc:'Den Code (beginnt mit <b>HP1</b>) oder den Link zeigt das Panel nach der Installation an – oder jederzeit mit <code>hp verbinden</code>.',fields:[{id:'c',label:'Code oder Link',type:'area',rows:3,ph:'HP1…'}],ok:'Verbinden',check:v=>hpParse(v.c)?'':'Das ist kein gültiger Code. Er beginnt mit HP1.'});
+  if(v)hpPairUI(v.c);
+}
+async function hpScan(){const t=await UI.scanQR({hint:'Scanne den QR-Code, den das Handy-Panel anzeigt (Koppel-Seite im Browser oder <code>hp verbinden</code>).',ok:x=>!!hpParse(x)});if(t)hpPairUI(t,{scan:true})}
 function drawHp(){
-  const h=S.hp||(S.hp={url:'http://127.0.0.1:8090',key:''});
-  const cmd1='pkg update -y && pkg install -y nodejs',cmd2='curl -fsSLo handy-panel.js '+hpUrl(),cmd3='termux-wake-lock; node handy-panel.js';
-  const cb=(c)=>`<div class="pxi" style="margin-top:8px"><span style="font-family:ui-monospace,Menlo,monospace">${esc(c)}</span><button class="btn" data-a="cpy" data-v="${esc(c)}">${ico('copy',16)}</button></div>`;
-  el.innerHTML=`${head('Handy-Panel einrichten','hp-x')}
-  <p class="st">Das Handy-Panel ist ein kleines Programm, das deine Server <b>direkt auf diesem Handy</b> laufen lässt. Die App steuert es wie ein Pterodactyl-Panel: mehrere Server anlegen, Konsole, Dateien, Start/Stopp.</p>
-  <div class="step"><b>1</b><div><p><b>Termux installieren</b> – am besten aus <b>F-Droid</b> (die Play-Store-Version ist veraltet).</p></div></div>
-  <div class="step"><b>2</b><div><p>Termux öffnen und nacheinander einfügen (lange tippen → Einfügen):</p>${cb(cmd1)}${cb(cmd2)}${cb(cmd3)}
-    <p class="st">Für <b>Minecraft</b> zusätzlich: <code>pkg install -y openjdk-21</code> · für Python: <code>pkg install -y python</code></p></div></div>
-  <div class="step"><b>3</b><div><p>Termux zeigt einen <b>Schlüssel</b> (beginnt mit tbp_). Kopiere ihn und füge ihn hier ein:</p>
+  const h=S.hp||(S.hp={os:myOS()==='ios'?'win':myOS(),fern:myOS()!=='android',java:false,url:'',key:''}),os=h.os;
+  const cb=c=>`<div class="hpc"><code>${esc(c)}</code><button class="btn" data-a="cpy" data-v="${esc(c)}" aria-label="Kopieren">${ico('copy',16)}</button></div>`;
+  const cmd=hpCmd(os,h);
+  const how={android:`<div class="step"><b>1</b><div><p><b>Termux</b> aus <b>F-Droid</b> installieren (die Play-Store-Version ist veraltet). Optional zusätzlich <b>Termux:Boot</b> – dann startet das Panel nach dem Neustart des Handys von selbst.</p></div></div>
+      <div class="step"><b>2</b><div><p>Termux öffnen, diesen <b>einen Befehl</b> einfügen (lange tippen → Einfügen) und Enter drücken:</p>${cb(cmd)}<p class="st">Dauert beim ersten Mal 1–3 Minuten. Danach öffnet sich diese App von selbst und ist verbunden.</p></div></div>`,
+    win:`<div class="step"><b>1</b><div><p><b>PowerShell</b> öffnen: Windows-Taste drücken, „PowerShell“ tippen, Enter. Admin-Rechte braucht es nicht.</p></div></div>
+      <div class="step"><b>2</b><div><p>Diesen <b>einen Befehl</b> einfügen (Rechtsklick) und Enter drücken:</p>${cb(cmd)}<p class="st">Node.js wird bei Bedarf mitgeladen. Danach öffnet sich eine Seite mit einem QR-Code – den scannst du oben mit „QR-Code scannen“.</p></div></div>`,
+    linux:`<div class="step"><b>1</b><div><p>Ein <b>Terminal</b> öffnen – auf einem Server (VPS) per SSH.</p></div></div>
+      <div class="step"><b>2</b><div><p>Diesen <b>einen Befehl</b> einfügen und Enter drücken (kein sudo nötig):</p>${cb(cmd)}<p class="st">Node.js wird bei Bedarf mitgeladen, der Autostart über systemd (oder crontab) eingerichtet. Am Ende zeigt das Terminal einen Code und – falls qrencode installiert ist – einen QR-Code.</p></div></div>`,
+    mac:`<div class="step"><b>1</b><div><p>Das <b>Terminal</b> öffnen (Spotlight: ⌘ + Leertaste → „Terminal“).</p></div></div>
+      <div class="step"><b>2</b><div><p>Diesen <b>einen Befehl</b> einfügen und Enter drücken:</p>${cb(cmd)}<p class="st">Node.js wird bei Bedarf mitgeladen. Danach öffnet sich eine Seite mit einem QR-Code – den scannst du oben mit „QR-Code scannen“.</p></div></div>`}[os];
+  el.innerHTML=`${head('Handy-Panel','hp-x')}
+  <p class="st">Das Handy-Panel lässt deine Server (z. B. Minecraft, Discord-Bots, Webseiten) <b>auf deinem eigenen Gerät</b> laufen – Handy, PC, Laptop oder Server. Die App steuert es wie ein Pterodactyl-Panel: mehrere Server, Konsole, Dateien, Plugins – mit Fernzugriff auch von unterwegs.</p>
+  <div class="banner ok"><b>Schon installiert?</b> Dann einfach verbinden:<div class="grid2" style="margin-top:8px"><button class="btn" data-a="hp-scan">${ico('qr',18)}QR-Code scannen</button><button class="btn" data-a="hp-code">${ico('edit',18)}Code einfügen</button></div></div>
+  <h3 style="margin:20px 0 6px">Installieren – ein Befehl</h3>
+  <p class="st">Wo sollen deine Server laufen?</p>
+  <div class="seg" id="hpos">${HPOS.map(([k,l])=>`<button data-v="${k}"${k===os?' class="on"':''}>${l}</button>`).join('')}</div>
+  ${how}
+  <label class="chk"><input type="checkbox" data-hp="fern"${h.fern?' checked':''}>Fernzugriff gleich einschalten – zum Steuern von unterwegs oder von einem anderen Gerät (z. B. dein Handy steuert den PC)</label>
+  <label class="chk"><input type="checkbox" data-hp="java"${h.java?' checked':''}>Java 21 mitinstallieren (für Minecraft-Server)</label>
+  <div class="step"><b>3</b><div><p>${os==='android'?'Hat sich die App nicht von selbst geöffnet? Dann den Link aus Termux antippen oder den Code oben einfügen.':'Den QR-Code mit dieser App scannen (oben) – oder den Link/Code einfügen. Läuft die App auf demselben PC, reicht ein Klick auf „In der App öffnen“.'}</p></div></div>
+  <details class="dt"><summary>Von außen erreichen (IP und Port)</summary><p class="st">${MIXED}<br><br>Eigene Domain mit HTTPS (z. B. per Caddy oder nginx vor dem Panel)? Dann trage sie unten unter „Manuell verbinden“ ein.</p></details>
+  <details class="dt"><summary>Manuell verbinden (Adresse und Schlüssel)</summary>
+    <label>Adresse</label><input id="hpu" value="${esc(h.url)}" placeholder="http://127.0.0.1:8090 oder https://….trycloudflare.com" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false">
     <label>Schlüssel</label><input id="hpk" value="${esc(h.key)}" placeholder="tbp_…" autocomplete="off" autocapitalize="off" spellcheck="false">
-    <details class="dt"><summary>Adresse ändern (nur wenn nötig)</summary><label>Adresse</label><input id="hpu" value="${esc(h.url)}" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"><p class="st">Standard ist <code>http://127.0.0.1:8090</code> (dieses Handy). Mit <code>--lan</code> gestartet, erreichst du das Panel auch von anderen Geräten im WLAN.</p></details>
-    <button class="btn pri" data-a="hp-go">${ico('check',18)}Verbinden</button><div id="hpr" class="diag"></div></div></div>
-  <details class="dt"><summary>Befehle in Termux</summary><p class="st">Nach dem ersten Start gibt es in Termux den Befehl <code>hp</code>:<br>• <code>hp</code> – Panel starten<br>• <code>hp status</code> – welche Server laufen<br>• <code>hp konsole survival</code> – Live-Konsole eines laufenden Servers wieder aufnehmen und Befehle eintippen (Strg+C trennt nur)<br>• <code>hp start|stop|restart|kill survival</code> · <code>hp stopp-alle</code><br><b>Deine Server laufen weiter</b>, auch wenn du das Panel mit Strg+C beendest. Beim nächsten Start übernimmt es sie wieder.</p></details>
-  <details class="dt"><summary>Gut zu wissen</summary><p class="st">• Termux muss geöffnet bleiben (die Benachrichtigung „Termux“ zeigt, dass es läuft). <code>termux-wake-lock</code> verhindert, dass Android es im Standby beendet.<br>• Android 12+ beendet manchmal Hintergrund-Prozesse („phantom process killer“). Ab Android 14: Entwickleroptionen → „Einschränkungen für untergeordnete Prozesse deaktivieren“.<br>• Minecraft braucht viel Arbeitsspeicher. Gib dem Server 1–2 GB RAM und lade nicht zu viele Spieler ein.<br>• Spieler im selben WLAN verbinden sich mit der IP deines Handys und dem Port des Servers. Aus dem Internet geht das nur mit Portfreigabe/Tunnel (z. B. playit.gg).<br>• Der Schlüssel liegt in Termux unter <code>~/handy-panel/panel.json</code>. Neuer Schlüssel: <code>node handy-panel.js --neuer-schluessel</code></p></details>`;
+    <p class="st">Den Schlüssel zeigt <code>hp schluessel</code>. Ohne Angabe gilt <code>http://127.0.0.1:8090</code> (dieses Gerät).</p>
+    <button class="btn pri" data-a="hp-go">${ico('check',18)}Verbinden</button><div id="hpr" class="diag"></div></details>
+  <details class="dt"><summary>Befehle (hp …)</summary><p class="st">Nach der Installation gibt es überall den Befehl <code>hp</code>:<br>• <code>hp verbinden</code> – Link, Code und QR-Code für die App<br>• <code>hp fernzugriff an</code> / <code>aus</code> – sichere https-Adresse für unterwegs<br>• <code>hp status</code> – läuft das Panel, welche Server laufen<br>• <code>hp konsole survival</code> – Live-Konsole eines Servers, Befehle eintippen (Strg+C trennt nur)<br>• <code>hp start|stop|restart|kill survival</code> · <code>hp stopp-alle</code><br>• <code>hp hintergrund</code> / <code>hp beenden</code> – Panel starten/beenden (Server laufen weiter)<br>• <code>hp autostart an|aus</code> · <code>hp update</code> · <code>hp hilfe</code><br>Erneut den Installationsbefehl ausführen = aktualisieren.</p></details>
+  <details class="dt"><summary>Gut zu wissen</summary><p class="st">• <b>Warum Termux und nicht in der App?</b> Eine Web-App darf aus Sicherheitsgründen keine Programme starten – Server brauchen aber echte Prozesse (Java, Node, Python). Deshalb läuft das Panel einmal eingerichtet in Termux bzw. auf dem PC weiter, startet von selbst und wird komplett aus der App gesteuert. Befehle tippen musst du danach nicht mehr.<br>• Android 12+ beendet manchmal Hintergrund-Prozesse („phantom process killer“). Ab Android 14: Entwickleroptionen → „Einschränkungen für untergeordnete Prozesse deaktivieren“. Das Panel hält Termux mit einem Wake-Lock wach.<br>• Minecraft braucht viel Arbeitsspeicher – auf dem Handy 1–2 GB RAM pro Server.<br>• Spieler verbinden sich im WLAN mit der IP des Geräts und dem Port des Servers. Aus dem Internet brauchen Spiele-Server eine Portfreigabe oder einen Spiele-Tunnel (z. B. playit.gg) – der Fernzugriff gilt nur für die App.<br>• Der Fernzugriff nutzt einen kostenlosen Cloudflare-Tunnel. Ohne den Schlüssel kommt niemand hinein; wer ihn errät, wird nach 10 Fehlversuchen gesperrt.</p></details>`;
 }
 async function hpGo(){
-  const h=S.hp,o=$('#hpr',el);h.key=($('#hpk',el).value||'').trim();h.url=normUrl(($('#hpu',el)||{}).value||h.url)||h.url;
-  if(!h.key){o.innerHTML=dg('er','Bitte den Schlüssel aus Termux einfügen.');return}
-  o.innerHTML=dg('..','Verbinde mit '+esc(hostOf(h.url))+' …');
-  const p={id:uid(),name:'Handy-Panel',url:h.url,key:h.key,akey:h.key,via:'direct',hp:1};
-  try{await api('GET','/',{p,timeout:8000})}
-  catch(e){o.innerHTML=dg('er','Keine Verbindung',(e&&e.status===401?'Der Schlüssel stimmt nicht. Kopiere ihn noch einmal aus Termux.':e&&e.net?'Läuft das Handy-Panel in Termux? (Schritt 2) Ist die Adresse richtig? Chrome fragt evtl., ob die App „Apps auf diesem Gerät“ erreichen darf – erlauben.':esc(fe(e))));return}
-  const old=DB.p.find(x=>x.hp&&x.url===h.url);if(old){Object.assign(old,{key:h.key,akey:h.key});DB.cur=old.id}else{DB.p.push(p);DB.cur=p.id}
-  save();S.hp=null;S.list=null;S.listErr=null;S.res={};S.scr='list';draw();await loadList();toast('✓ Handy-Panel verbunden');
-  if(S.list&&!S.list.length){openAdmin();adNew()}
+  const h=S.hp,o=$('#hpr',el);h.key=($('#hpk',el).value||'').trim();let u=($('#hpu',el).value||'').trim();h.url=u;
+  if(!u)u='http://127.0.0.1:8090';else if(!/^https?:\/\//i.test(u))u=(/^(localhost|\d+\.\d+\.\d+\.\d+|\[)/.test(u)?'http://':'https://')+u;
+  try{u=new URL(u).origin}catch(e){o.innerHTML=dg('er','Die Adresse ist ungültig.');return}
+  const hk=hpParse(h.key);if(hk)return hpPairUI(hk);
+  if(!h.key){o.innerHTML=dg('er','Bitte den Schlüssel eintragen (zeigt „hp schluessel“).');return}
+  if(hpBlocked(u)){o.innerHTML=dg('er','Diese Adresse kann die App nicht erreichen',MIXED);return}
+  o.innerHTML=dg('..','Verbinde mit '+esc(hostOf(u))+' …');
+  const r=await hpTry(u,h.key,9000);
+  if(r!==true){o.innerHTML=dg('er','Keine Verbindung',r==='key'?'Der Schlüssel stimmt nicht. Er steht bei <code>hp schluessel</code>.':isLoop(u)?'Läuft das Panel auf <b>diesem</b> Gerät? (<code>hp status</code>) Chrome fragt evtl., ob die App „Apps auf diesem Gerät“ erreichen darf – erlauben.':isPriv(u)?'Im WLAN klappt das nur, wenn das Panel mit <code>--lan</code> läuft und der Browser lokale Zugriffe erlaubt. Einfacher und von überall: Fernzugriff (<code>hp fernzugriff an</code>).':'Läuft das Panel und stimmt die Adresse? Eine Fernzugriff-Adresse ändert sich nach jedem Neustart des Panels – den aktuellen Code zeigt <code>hp verbinden</code>.');return}
+  const old=DB.p.find(x=>x.hp&&(x.url===u||x.key===h.key)),pr=old||{id:uid(),name:'Handy-Panel',via:'direct',hp:1};
+  Object.assign(pr,{url:u,key:h.key,akey:h.key,hpLoc:pr.hpLoc||isLoop(u)});if(isLoop(u))pr.hpl=u;if(/trycloudflare\.com$/.test(hostOf(u)))pr.hpr=u;
+  if(!old)DB.p.push(pr);DB.cur=pr.id;save();
+  try{const i=await hpInfo(pr);if(i){if(i.tunnel&&i.tunnel.url)pr.hpr=i.tunnel.url;pr.hpl=pr.hpl||i.local;pr.hpa=i.lan||[];save()}}catch(e){}
+  S.hp=null;S.list=null;S.listErr=null;S.res={};S.scr='list';draw();await loadList();toast('✓ Handy-Panel verbunden');
+  if(!old&&S.list&&!S.list.length){openAdmin();adNew()}
+}
+/* Panel verwalten: Fernzugriff, weiteres Gerät koppeln, Update */
+async function hpLatest(){try{const r=await fetch(hpUrl(),{cache:'no-store'});const m=/const VERSION = '([\d.]+)'/.exec(await r.text());return m?m[1]:null}catch(e){return null}}
+const vcmp=(a,b)=>{const x=String(a).split('.').map(Number),y=String(b).split('.').map(Number);for(let i=0;i<3;i++){if((x[i]||0)!==(y[i]||0))return(x[i]||0)-(y[i]||0)}return 0};
+async function openHpm(){const p=cur();if(!p||!p.hp)return;S.hpm={p,i:null,err:null,busy:''};S.scr='hpm';draw();window.scrollTo(0,0);await hpmLoad()}
+async function hpmLoad(){
+  const m=S.hpm;if(!m)return;m.err=null;
+  try{m.i=await hpInfo(m.p);const t=m.i.tunnel||{};if(t.url&&m.p.hpr!==t.url){m.p.hpr=t.url;save()}if(m.i.lan)m.p.hpa=m.i.lan;if(m.i.local)m.p.hpl=m.p.hpl||m.i.local}
+  catch(e){m.err=e&&e.status===404?'old':fe(e)}
+  if(S.scr==='hpm'&&S.hpm===m)drawHpm();
+  if(!m.latest){m.latest=await hpLatest();if(S.scr==='hpm'&&S.hpm===m)drawHpm()}
+}
+function drawHpm(){
+  const m=S.hpm,p=m.p,i=m.i,t=(i&&i.tunnel)||{},viaT=/trycloudflare\.com$/.test(hostOf(p.url));
+  const up=i&&m.latest&&vcmp(m.latest,i.version)>0;
+  const where=isLoop(p.url)?'auf diesem Gerät':viaT?'über den Fernzugriff':isPriv(p.url)?'im WLAN':'über '+esc(hostOf(p.url));
+  el.innerHTML=`${head('Handy-Panel verwalten','hpm-x')}
+  ${m.err==='old'?`<div class="banner"><b>Ältere Panel-Version.</b> Verwaltung, Fernzugriff und Update gibt es ab Version 1.2. Aktualisiere einmal mit dem Installationsbefehl (Server → Neue Verbindung → Handy-Panel) – deine Server und Daten bleiben erhalten.</div>`:m.err?`<div class="banner er"><b>Panel nicht erreichbar.</b> ${esc(m.err)}</div><button class="btn" data-a="hpm-re">${ico('refresh',18)}Erneut versuchen</button>`:''}
+  ${!i&&!m.err?`<div class="diag">${dg('..','Lade Infos vom Panel …')}</div>`:''}
+  ${i?`<div class="diag">${dg('ok','Version '+esc(i.version)+' · '+esc(i.platform),esc(i.host)+' · Node '+esc(i.node)+' · '+i.servers+' Server, '+i.running+' laufen')}${dg('ok','Verbunden '+where,esc(p.url))}</div>
+  <h3 style="margin:20px 0 6px">Fernzugriff ${t.url?'<span class="ok2">● an</span>':t.on?'… '+esc(t.state):'○ aus'}</h3>
+  <p class="st">${t.url?'Erreichbar von überall über <code>'+esc(t.url)+'</code>. Die Adresse ändert sich nach einem Neustart des Panels – die App findet die neue selbst.':t.on?'Wird eingerichtet'+(t.err?': '+esc(t.err):' – beim ersten Mal wird cloudflared geladen (ca. 20 MB).'):'Aus – das Panel ist nur '+(i.lan&&i.lan.length?'im WLAN und ':'')+'auf dem Gerät selbst erreichbar.'} Mit Fernzugriff bekommt das Panel eine sichere https-Adresse über einen kostenlosen Cloudflare-Tunnel – ohne Portfreigabe.</p>
+  <button class="btn${t.on?'':' pri'}" data-a="hpm-tun"${m.busy?' disabled':''}>${ico(t.on?'x':'globe',18)}${m.busy==='tun'?'Bitte warten …':t.on?'Fernzugriff ausschalten':'Fernzugriff einschalten'}</button>
+  <h3 style="margin:20px 0 6px">Weiteres Gerät verbinden</h3>
+  <p class="st">${t.url?'Scanne diesen QR-Code mit der Toolbox-App auf dem anderen Gerät (Server → Neue Verbindung → Handy-Panel → QR-Code scannen).':'Für ein anderes Gerät zuerst den Fernzugriff einschalten. Im selben WLAN geht es auch ohne, wenn das Panel mit <code>--lan</code> läuft.'}</p>
+  <div class="qr" id="hpq"></div>
+  <div class="grid2"><button class="btn" data-a="hpm-cc">${ico('copy',18)}Code kopieren</button><button class="btn" data-a="hpm-share">${ico('send',18)}Link teilen</button></div>
+  <p class="st">⚠ Wer den Code hat, kann das Panel komplett steuern – nur an eigene Geräte geben.</p>
+  <h3 style="margin:20px 0 6px">Update</h3>
+  <p class="st">${up?'Neue Version <b>'+esc(m.latest)+'</b> verfügbar (installiert: '+esc(i.version)+'). Das Panel startet danach neu – deine Server laufen weiter.':m.latest?'Das Panel ist aktuell ('+esc(i.version)+').':'Prüfe auf neue Version …'}</p>
+  ${up?`<button class="btn pri" data-a="hpm-up"${m.busy?' disabled':''}>${ico('down',18)}${m.busy==='up'?'Aktualisiere …':'Jetzt aktualisieren'}</button>`:''}`:''}`;
+  const q=$('#hpq',el);if(q&&i&&t.url&&typeof QRCode!=='undefined'){try{new QRCode(q,{text:i.link||i.code,width:240,height:240,correctLevel:QRCode.CorrectLevel.L})}catch(e){}}
+}
+async function hpmTun(){
+  const m=S.hpm,p=m.p,on=!(m.i&&m.i.tunnel&&m.i.tunnel.on),viaT=/trycloudflare\.com$/.test(hostOf(p.url));
+  if(!on&&viaT&&!await yes('Fernzugriff ausschalten?','Du bist gerade <b>über den Fernzugriff</b> verbunden. Danach erreicht die App das Panel nur noch auf dem Gerät selbst'+(p.hpa&&p.hpa.length?' bzw. im WLAN':'')+'. Wieder einschalten geht dann nur dort: <code>hp fernzugriff an</code>.','Ausschalten',true))return;
+  m.busy='tun';drawHpm();
+  try{m.i=await api('POST','',{p,base:'/api/handy/tunnel',json:{on},timeout:20000});if(!on){p.hpr=null;save()}
+    for(let k=0;on&&k<45&&S.hpm===m&&!(m.i.tunnel&&m.i.tunnel.url)&&m.i.tunnel.on;k++){await sleep(2000);try{m.i=await hpInfo(p)}catch(e){}if(S.scr==='hpm')drawHpm()}
+    if(m.i.tunnel&&m.i.tunnel.url){p.hpr=m.i.tunnel.url;save();toast('✓ Fernzugriff an')}else if(!on)toast('Fernzugriff aus')}
+  catch(e){if(!on&&viaT){toast('Fernzugriff aus');}else info('Nicht möglich',esc(fe(e)))}
+  m.busy='';if(S.hpm===m)hpmLoad();
+}
+async function hpmUp(){
+  const m=S.hpm,p=m.p,want=m.latest;m.busy='up';drawHpm();
+  try{const r=await api('POST','',{p,base:'/api/handy/update',json:{from:appBase()},timeout:60000});
+    if(!r.updated){toast('Schon aktuell');m.busy='';return hpmLoad()}
+    for(let k=0;k<40;k++){await sleep(1500);try{const i=await hpInfo(p);if(i&&vcmp(i.version,want)>=0){m.i=i;break}}catch(e){}}
+    toast(m.i&&m.i.version===want?'✓ Aktualisiert auf '+want:'Update installiert – das Panel startet neu');
+  }catch(e){info('Update nicht möglich',esc(fe(e)))}
+  m.busy='';if(S.hpm===m)hpmLoad();
 }
 Object.assign(H,{
   'hp-open':()=>{readPf();S.scr='hp';draw();window.scrollTo(0,0)},
   'hp-x':()=>{if(S.pf){S.scr='prof';drawProf()}else{S.scr=DB.p.length?'list':'prof';draw()}},
   'hp-go':()=>hpGo(),
+  'hp-scan':()=>hpScan(),
+  'hp-code':()=>hpCodeAsk(),
+  'hpm-x':()=>{S.hpm=null;S.scr='list';draw()},
+  'hpm-re':()=>{S.hpm.i=null;S.hpm.err=null;drawHpm();hpmLoad()},
+  'hpm-tun':()=>hpmTun(),
+  'hpm-up':()=>hpmUp(),
+  'hpm-cc':()=>{const i=S.hpm&&S.hpm.i;if(i)copyText(i.code)},
+  'hpm-share':async()=>{const i=S.hpm&&S.hpm.i;if(!i)return;const l=i.link||(appBase()+'#hp='+i.code);try{if(navigator.share){await navigator.share({title:'Handy-Panel verbinden',url:l});return}}catch(e){if(e&&e.name==='AbortError')return}copyText(l)},
   'ad-new0':()=>{openAdmin();adNew()}
 });
+// Wird von der Startseite aufgerufen, wenn die App über einen Koppel-Link (…#hp=HP1…) geöffnet wurde
+window.tbHpPair=c=>{if(!hpParse(c)){toast('Ungültiger Koppel-Link');return}hpPairUI(c)};
 /* ----- Start, Ereignisse, Registrierung ----- */
 function draw(){
   if(!el)return;
@@ -3386,6 +3578,7 @@ function draw(){
   if(S.scr==='px')return drawPx();
   if(S.scr==='admin'&&S.ad)return drawAdmin();
   if(S.scr==='hp')return drawHp();
+  if(S.scr==='hpm'&&S.hpm)return drawHpm();
   if(S.scr==='server'&&S.srv){drawSrv();drawTabs();drawBody();return}
   S.scr='list';drawList();
 }
@@ -3422,8 +3615,9 @@ Object.assign(H,{
   reload:()=>{S.res={};loadList()},
   pmenu:async()=>{
     const p=cur();if(!p)return;
-    const a=await menu('Verbindung',[{id:'ad',label:p.akey?'Panel verwalten (Admin)':'Admin-Schlüssel hinzufügen (Server erstellen …)',icon:'shield'},{id:'ed',label:'Bearbeiten',icon:'edit'},{id:'dg',label:'Verbindung prüfen',icon:'check'},{id:'px',label:'Vermittler einrichten / ändern',icon:'cloud'},{id:'nw',label:'Neue Verbindung hinzufügen',icon:'plus'}],esc(p.name+' · '+hostOf(p.url)+' · '+(p.via==='px'?'über Vermittler':'direkt')));
+    const a=await menu('Verbindung',[p.hp?{id:'hpm',label:'Handy-Panel: Fernzugriff, Koppeln, Update',icon:'globe'}:null,{id:'ad',label:p.akey?'Panel verwalten (Admin)':'Admin-Schlüssel hinzufügen (Server erstellen …)',icon:'shield'},{id:'ed',label:'Bearbeiten',icon:'edit'},{id:'dg',label:'Verbindung prüfen',icon:'check'},{id:'px',label:'Vermittler einrichten / ändern',icon:'cloud'},{id:'nw',label:'Neue Verbindung hinzufügen',icon:'plus'}],esc(p.name+' · '+hostOf(p.url)+' · '+(p.via==='px'?'über Vermittler':'direkt')));
     if(a==='ad')openAdmin();
+    else if(a==='hpm')openHpm();
     else if(a==='ed'){S.pf=Object.assign({},p);S.scr='prof';draw()}
     else if(a==='dg')diagnose();
     else if(a==='px'){S.from='list';S.pf=null;S.scr='px';S.pxOk=null;draw()}
@@ -3458,6 +3652,8 @@ function mount(root){
   el.onclick=e=>{
     const sg=e.target.closest('#pvia button');
     if(sg){readPf();S.pf.via=sg.dataset.v;drawProf();return}
+    const so=e.target.closest('#hpos button');
+    if(so&&S.hp){S.hp.os=so.dataset.v;const y=window.scrollY;drawHp();window.scrollTo(0,y);return}
     const b=e.target.closest('[data-a]');if(!b)return;
     const h=H[b.dataset.a];if(h)h(b,e);
   };
@@ -3469,6 +3665,7 @@ function mount(root){
   };
   el.onchange=e=>{
     const t=e.target;
+    if(S.hp&&S.scr==='hp'&&t.dataset&&t.dataset.hp){const u=$('#hpu',el),k=$('#hpk',el);if(u)S.hp.url=u.value;if(k)S.hp.key=k.value;S.hp[t.dataset.hp]=t.checked;const y=window.scrollY;drawHp();window.scrollTo(0,y);return}
     if(S.ad&&S.ad.nw&&t.dataset&&t.dataset.nf){S.ad.nw.f[t.dataset.nf]=t.type==='checkbox'?t.checked:t.value;if(t.id==='negg')adEgg();else if(t.id==='nnode')adAllocs();return}
     if(t.id==='ps'){
       if(t.value==='+')return newProf();
@@ -4495,7 +4692,7 @@ tool({id:'set',sys:1,icon:'sliders',title:'Einstellungen',desc:'Design, Textgrö
   <label>Standard-Verschlüsselung</label><select id="al">${Object.entries(ALGS).map(([k,v])=>`<option value="${k}"${k===SET.alg?' selected':''}>${v.n}</option>`).join('')}</select>
   <label>Daten</label><button id="rs" class="btn">${ico('trash',18)}Alle Daten zurücksetzen</button>
   <p class="st">Löscht Notizen, eigene Stile, Server-Verbindungen (samt API-Schlüsseln), die Daten der AI Agents (Chats, Arbeitsbereiche, Wissen), Chat-Kontakte samt Verlauf und Einstellungen von diesem Gerät. Erstelle vorher ein Backup. Heruntergeladene KI-Modelle bleiben erhalten – die löschst du unter AI Agents → Modelle.</p>
-  <p class="foot">Toolbox · Version 1.7</p>`;
+  <p class="foot">Toolbox · Version 1.8</p>`;
   el.onclick=e=>{const b=e.target.closest('button');if(!b)return;const g=b.closest('.seg');
     if(g){const k=g.dataset.k;SET[k]=k==='z'?+b.dataset.v:b.dataset.v;g.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));saveSet();if(k==='nt'&&SET.nt==='on')askNt(g)}
     else if(b.dataset.ac!=null){SET.ac=+b.dataset.ac;el.querySelectorAll('.sw').forEach(x=>x.classList.toggle('on',x===b));saveSet()}
@@ -4567,6 +4764,11 @@ addEventListener('popstate',()=>{
 
 /* ---------- Start ---------- */
 menu.innerHTML=TOOLS.map((t,i)=>t.sys?'':`<button class="card" data-i="${i}"><span class="ib">${ico(t.icon,22)}</span><span class="tx"><b>${t.title}</b><small>${t.desc}</small></span>${ico('chev',18)}</button>`).join('');
+// Koppel-Link vom Handy-Panel (…#hp=HP1…): Server-Werkzeug öffnen und verbinden
+function hpLink(){const m=/[#&]hp=([A-Za-z0-9_-]+)/.exec(location.hash);if(!m)return;
+  try{history.replaceState(history.state,'',location.pathname+location.search)}catch(e){}
+  const t=TOOLS.find(x=>x.id==='srv');if(!t||!window.tbHpPair)return;if(view.dataset.t!==t.title)open(t);setTimeout(()=>window.tbHpPair(m[1]),50)}
+hpLink();addEventListener('hashchange',hpLink); // auch wenn die App schon offen ist
 </script>
 <script>if('serviceWorker' in navigator&&location.protocol.indexOf('http')===0)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))</script>
 </body>
