@@ -157,6 +157,12 @@ input[type=range]{padding:0;border:0;background:none;height:30px;accent-color:va
 .pxi{display:flex;align-items:center;gap:10px;margin-top:10px;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;background:var(--cd);font-size:13px}
 .pxi svg{flex:none;color:var(--mu)}.pxi span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pxi .btn{width:auto;margin:0;padding:6px 12px;font-size:13px}
+.opt{display:flex;align-items:center;gap:14px;width:100%;text-align:left;margin-top:12px;padding:16px;border:1px solid var(--bd);border-radius:16px;background:var(--cd);color:inherit;font:inherit;cursor:pointer;box-shadow:var(--sh)}.opt.rec{border-color:color-mix(in srgb,var(--ac) 55%,var(--bd));background:linear-gradient(135deg,color-mix(in srgb,var(--ac) 10%,var(--cd)),var(--cd))}
+.opt .ib{flex:none;width:46px;height:46px;border-radius:14px;display:grid;place-items:center;background:var(--ac2);color:var(--ac)}.opt.rec .ib{background:var(--ac);color:var(--on)}.opt .tx{flex:1;min-width:0}.opt .tx b{display:block;font-size:16px}.opt .tx small{display:block;color:var(--mu);font-size:13px;margin-top:3px;white-space:normal;overflow:visible;text-overflow:clip}.opt>svg{flex:none;color:var(--mu)}
+.feat{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.feat i{font-style:normal;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:99px;background:var(--ac2);color:var(--tx)}div.opt{cursor:default}div.opt .grid2 .btn{margin:0}
+.ncard{margin-top:12px;padding:14px;border:1px solid var(--bd);border-radius:14px;background:var(--cd)}.ncard>h3{margin:0 0 6px;font-size:16px}
+.nrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--bd)}.nrow:first-of-type{border-top:0}.nrow>span{flex:none;color:var(--mu);display:grid;place-items:center;width:22px}.nrow>div{flex:1;min-width:0}.nrow small{display:block;color:var(--mu);font-size:12px}.nrow code{display:block;font:600 15px/1.35 ui-monospace,Menlo,Consolas,monospace;overflow-wrap:anywhere}.nrow em{display:block;font-style:normal;font-size:12px;color:var(--mu)}
+.nst{display:flex;align-items:center;gap:12px;padding:10px 12px;margin:6px 0 4px;border-radius:12px;background:var(--ac2);font-size:14px}.nst.on{background:color-mix(in srgb,#16a34a 13%,var(--cd))}.nst.on b{color:#15803d}.nst img{border-radius:8px;image-rendering:pixelated;flex:none}.nst small{display:block;color:var(--mu);font-size:12px;overflow-wrap:anywhere}
 .hpc{display:flex;gap:8px;align-items:flex-start;margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:10px;background:var(--cd)}.hpc code{flex:1;min-width:0;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;word-break:break-all;user-select:all}.hpc .btn{width:auto;margin:0;padding:6px 10px;flex:none}
 /* AI Agents */
 .ai-ag{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 12px;font:inherit;color:inherit;cursor:pointer;margin-top:4px}
@@ -2006,26 +2012,32 @@ const WHY=`Dein Hoster erlaubt Apps wie dieser den Zugriff auf sein Panel normal
 
 function drawProf(){
   const f=S.pf,np=!DB.px||!DB.px.url;
-  el.innerHTML=`${head(f.id?'Verbindung bearbeiten':'Neue Verbindung',DB.p.length?'prof-x':'')}
-  ${DB.p.length?'':'<p class="st">Verwalte deine Server aus einem Pterodactyl-Panel: Konsole, Dateien, Backups, Zeitpläne und mehr. Du brauchst nur die Adresse deines Panels und einen persönlichen API-Schlüssel.</p>'}
-  ${f.id?'':`<div class="banner ok"><b>Kein eigenes Panel?</b> Mit dem <b>Handy-Panel</b> laufen Server (z. B. Minecraft) auf deinem eigenen Gerät – Handy (Termux), Windows, Linux oder Mac. Ein Befehl zum Installieren, ohne Docker.<button class="btn" data-a="hp-open">${ico('server',18)}Handy-Panel einrichten / verbinden</button></div>`}
-  <label>Name (frei wählbar)</label><input id="pn" value="${esc(f.name)}" placeholder="z. B. Mein Hoster" autocomplete="off">
-  <label>Panel-Adresse</label><input id="pu" value="${esc(f.url)}" placeholder="https://panel.beispiel.de" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false">
-  <label>API-Schlüssel</label><div class="addrow" style="margin-top:0"><input id="pk" type="password" value="${esc(f.key)}" placeholder="ptlc_…" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn" data-a="eye" aria-label="Anzeigen">${ico('eye',18)}</button></div>
-  <p class="st">So bekommst du den Schlüssel: Im Panel (Webseite) oben rechts auf dein Konto tippen → <b>API-Zugangsdaten</b> → Beschreibung eintippen → <b>Erstellen</b> → den Schlüssel kopieren (er wird nur einmal angezeigt) und hier einfügen.</p>
-  <label>Admin-Schlüssel (optional)</label><div class="addrow" style="margin-top:0"><input id="pa" type="password" value="${esc(f.akey||'')}" placeholder="ptla_…" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn" data-a="eye2" aria-label="Anzeigen">${ico('eye',18)}</button></div>
-  <p class="st">Nur wenn dir das Panel gehört: Damit kannst du in der App <b>Server erstellen</b>, Benutzer, Nodes und Ports verwalten. Im Panel: <b>Admin → Application API → Create New</b> → überall „Read &amp; Write“.</p>
-  <label>Zugriff</label>
-  <div class="seg" id="pvia"><button data-v="px"${f.via==='px'?' class="on"':''}>Über Vermittler</button><button data-v="direct"${f.via==='direct'?' class="on"':''}>Direkt</button></div>
-  <p class="st">${f.via==='px'?'Empfohlen, wenn du nicht selbst Admin des Panels bist.':'Nur sinnvoll, wenn dein Hoster Zugriffe von fremden Web-Apps freigegeben hat (die meisten tun das nicht).'}</p>
-  ${f.via==='px'&&np?`<div class="banner"><b>Der Vermittler ist noch nicht eingerichtet.</b> Das dauert etwa 5 Minuten und ist einmalig.<button class="btn" data-a="px-open">${ico('cloud',18)}Vermittler einrichten</button></div>`:''}
-  ${f.via==='px'&&!np?`<div class="pxi">${ico('cloud',16)}<span>Vermittler: <b>${esc(hostOf(DB.px.url))}</b></span><button class="btn" data-a="px-open">Ändern</button></div>`:''}
-  <button class="btn pri" data-a="pf-save">${ico('check',18)}Speichern und prüfen</button>
+  if(!f.id&&!f.kind){ // Auswahl: Was möchtest du verbinden?
+    el.innerHTML=`${head('Neue Verbindung',DB.p.length?'prof-x':'')}
+    <p class="st">${DB.p.length?'Womit möchtest du deine Server verwalten?':'Willkommen! Hier verwaltest du Server – Minecraft, Discord-Bots, Lavalink und mehr: Konsole live, Dateien, Plugins, Spieler, Netzwerk. Womit möchtest du starten?'}</p>
+    <button class="opt rec" data-a="hp-open"><span class="ib">${ico('server',24)}</span><span class="tx"><b>Eigene Server – kostenlos<span class="tag g">Empfohlen</span></b><small>Läuft auf deinem Handy, PC, Laptop oder Linux-Server. Ein Befehl zum Installieren, dann alles hier in der App.</small><span class="feat"><i>Minecraft</i><i>Lavalink</i><i>Bots</i><i>Fernzugriff</i></span></span>${ico('chev',18)}</button>
+    <div class="opt"><span class="ib">${ico('qr',24)}</span><span class="tx"><b>Handy-Panel schon installiert?</b><small>Mit dem QR-Code oder Code verbinden, den das Panel anzeigt (<code>hp verbinden</code>).</small><span class="grid2" style="margin-top:8px"><button class="btn" data-a="hp-scan">${ico('qr',18)}Scannen</button><button class="btn" data-a="hp-code">${ico('edit',18)}Code</button></span></span></div>
+    <button class="opt" data-a="pf-kind" data-v="ptero"><span class="ib">${ico('shield',24)}</span><span class="tx"><b>Pterodactyl-Panel</b><small>Server bei einem Hoster oder dein eigenes Panel (Pterodactyl, Pelican). Du brauchst die Adresse und einen API-Schlüssel.</small></span>${ico('chev',18)}</button>
+    <p class="foot">${ico('lock',14)}Schlüssel bleiben nur auf diesem Gerät und kommen nicht ins Backup.</p>`;return}
+  const hp=!!f.hp,st=(n,t,body)=>`<div class="step"><b>${n}</b><div><p><b>${t}</b></p>${body}</div></div>`;
+  el.innerHTML=`${head(f.id?'Verbindung bearbeiten':'Pterodactyl verbinden','prof-x')}
+  ${f.id?'':'<p class="st">Verwalte Server aus einem Pterodactyl-Panel: Konsole, Dateien, Plugins, Spieler, Backups, Zeitpläne und mehr.</p>'}
+  ${st(1,'Adresse des Panels',`<input id="pu" value="${esc(f.url)}" placeholder="https://panel.beispiel.de" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"><label>Name (frei wählbar)</label><input id="pn" value="${esc(f.name)}" placeholder="${hp?'Handy-Panel':'z. B. Mein Hoster'}" autocomplete="off">`)}
+  ${st(2,hp?'Schlüssel':'API-Schlüssel',`<div class="addrow" style="margin-top:6px"><input id="pk" type="password" value="${esc(f.key)}" placeholder="${hp?'tbp_…':'ptlc_…'}" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn" data-a="eye" aria-label="Anzeigen">${ico('eye',18)}</button></div>
+    ${hp?'<p class="st">Den Schlüssel zeigt <code>hp schluessel</code>.</p>':`<details class="dt" style="margin-top:8px"><summary>So bekommst du den Schlüssel</summary><p class="st">Im Panel (Webseite) oben rechts auf dein Konto tippen → <b>API-Zugangsdaten</b> (API Credentials) → Beschreibung eintippen → <b>Erstellen</b> → den Schlüssel (beginnt mit <code>ptlc_</code>) kopieren – er wird nur einmal angezeigt.</p></details>`}`)}
+  ${hp?'':st(3,'Zugriff',`<div class="seg" id="pvia" style="margin-top:6px"><button data-v="px"${f.via==='px'?' class="on"':''}>Über Vermittler</button><button data-v="direct"${f.via==='direct'?' class="on"':''}>Direkt</button></div>
+    <p class="st">${f.via==='px'?'Empfohlen bei Hostern: Panels blockieren Zugriffe aus fremden Apps meist. Der Vermittler ist dein eigener kostenloser Cloudflare-Worker.':'Nur wenn dein Panel Zugriffe aus Apps erlaubt (bei eigenen Panels einstellbar).'}</p>
+    ${f.via==='px'&&np?`<div class="banner"><b>Der Vermittler ist noch nicht eingerichtet.</b> Dauert etwa 5 Minuten, einmalig.<button class="btn" data-a="px-open">${ico('cloud',18)}Vermittler einrichten</button></div>`:''}
+    ${f.via==='px'&&!np?`<div class="pxi">${ico('cloud',16)}<span>Vermittler: <b>${esc(hostOf(DB.px.url))}</b></span><button class="btn" data-a="px-open">Ändern</button></div>`:''}`)}
+  ${hp?'':`<details class="dt"${f.akey?' open':''}><summary>Admin-Schlüssel (optional, nur für dein eigenes Panel)</summary>
+    <div class="addrow" style="margin-top:0"><input id="pa" type="password" value="${esc(f.akey||'')}" placeholder="ptla_…" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn" data-a="eye2" aria-label="Anzeigen">${ico('eye',18)}</button></div>
+    <p class="st">Damit kannst du in der App <b>Server erstellen</b>, Benutzer, Nodes und Ports verwalten – und die KI darf Server einrichten. Im Panel: <b>Admin → Application API → Create New</b> → überall „Read &amp; Write“.</p></details>`}
+  <button class="btn pri" data-a="pf-save">${ico('check',18)}${f.id?'Speichern und prüfen':'Verbinden'}</button>
   ${f.id?`<button class="btn warn" data-a="pf-del">${ico('trash',18)}Verbindung löschen</button>`:''}
   <p class="foot">${ico('lock',14)}Der Schlüssel wird nur auf diesem Gerät gespeichert und nicht ins Backup übernommen.</p>`;
 }
 function newProf(){S.pf={name:'',url:'',key:'',via:DB.px&&DB.px.url?'px':'direct'};if(!DB.px||!DB.px.url)S.pf.via='px';S.scr='prof';draw()}
-function readPf(){const g=i=>($(i,el)||{}).value;const f=S.pf;f.akey=(g('#pa')||'').trim();f.name=(g('#pn')||'').trim();f.url=g('#pu')||'';f.key=(g('#pk')||'').trim()}
+function readPf(){const g=i=>($(i,el)||{}).value;const f=S.pf;if(!$('#pu',el))return;f.akey=f.hp?f.key:(g('#pa')||'').trim();f.name=(g('#pn')||'').trim();f.url=g('#pu')||'';f.key=(g('#pk')||'').trim()}
 
 async function savePf(){
   readPf();const f=S.pf,url=normUrl(f.url);
@@ -2037,7 +2049,7 @@ async function savePf(){
   if(f.via==='direct'&&/^http:/i.test(url)&&location.protocol==='https:'&&!/^http:\/\/(127\.|localhost|\[::1\])/i.test(url))return info('Panel ohne HTTPS','Dein Panel ist nur über <b>http://</b> erreichbar. Diese App läuft über https und darf deshalb nicht direkt darauf zugreifen (Browser-Sicherheitsregel). Wähle bei „Zugriff“ den Eintrag <b>Über Vermittler</b>.');
   let p=f.id&&DB.p.find(x=>x.id===f.id);
   if(!p){p={id:uid()};DB.p.push(p)}
-  Object.assign(p,{name:f.name||hostOf(url),url,key:f.key,via:f.via,akey:f.akey||''});
+  Object.assign(p,{name:f.name||hostOf(url),url,key:f.key,via:f.hp?'direct':f.via,akey:f.hp?f.key:(f.akey||'')});
   DB.cur=p.id;save();S.scr='list';S.list=null;S.listErr=null;draw();loadList();
 }
 
@@ -2184,15 +2196,16 @@ async function quickPower(id,sig){
     const r=S.res[id];if(r)r.current_state=sig==='start'?'starting':'stopping';updRow(id);setTimeout(()=>S.scr==='list'&&loadRes(),2500)}
 }
 /* ----- Server-Ansicht: Kopf, Reiter, Live-Verbindung (WebSocket) ----- */
-const TABS=[['con','Konsole','terminal','websocket.connect'],['fil','Dateien','folder','file.read'],['plg','Plugins','puzzle','file.create'],['bak','Backups','archive','backup.read'],['sch','Zeitpläne','clock','schedule.read'],['dbs','Datenbanken','database','database.read'],['net','Netzwerk','globe','allocation.read'],['sta','Startup','sliders','startup.read'],['set','Einstellungen','edit','']];
+const TABS=[['con','Konsole','terminal','websocket.connect'],['mcx','Minecraft','cube','file.read'],['fil','Dateien','folder','file.read'],['plg','Plugins','puzzle','file.create'],['bak','Backups','archive','backup.read'],['sch','Zeitpläne','clock','schedule.read'],['dbs','Datenbanken','database','database.read'],['net','Netzwerk','globe','allocation.read'],['sta','Startup','sliders','startup.read'],['set','Einstellungen','edit','']];
 const can=k=>!k||(S.perm||[]).includes(k)||(S.perm||[]).includes('*');
+const tabOk=x=>can(x[3])&&(!['plg','mcx'].includes(x[0])||isMc(S.srv));
 const sid=()=>encodeURIComponent(S.srv.id);
 const SP=p=>`/servers/${sid()}${p}`;
 
 async function openSrv(id){
   const s=S.list&&S.list.find(x=>x.id===id);if(!s)return;
   closeSrv();
-  Object.assign(S,{srv:Object.assign({},s),scr:'server',tab:'con',perm:null,detErr:null,blk:false,lastWhy:'',state:(S.res[id]&&S.res[id].current_state)||'offline',st:null,lines:[],buf:[],hist:[],hi:-1,ld:{},fd:null,mc:null,wsState:'idle',retry:0});
+  Object.assign(S,{srv:Object.assign({},s),scr:'server',tab:'con',perm:null,detErr:null,blk:false,lastWhy:'',state:(S.res[id]&&S.res[id].current_state)||'offline',st:null,lines:[],buf:[],hist:[],hi:-1,ld:{},fd:null,mc:null,mx:null,nx:null,wsState:'idle',retry:0});
   drawSrv();
   await loadDetail(id);
   if(S.scr!=='server'||!S.srv||S.srv.id!==id)return;
@@ -2242,7 +2255,7 @@ function drawTop(){
 function drawTabs(){
   const t=$('#svTabs',el);if(!t||!S.perm)return;
   if(S.blk){t.hidden=true;return}
-  t.hidden=false;t.innerHTML=TABS.filter(x=>can(x[3])&&(x[0]!=='plg'||isMc(S.srv))).map(x=>`<button class="chipb${S.tab===x[0]?' on':''}" data-a="tab" data-t="${x[0]}">${ico(x[2],16)}${x[1]}</button>`).join('');
+  t.hidden=false;t.innerHTML=TABS.filter(tabOk).map(x=>`<button class="chipb${S.tab===x[0]?' on':''}" data-a="tab" data-t="${x[0]}">${ico(x[2],16)}${x[1]}</button>`).join('');
   const on=t.querySelector('.on');if(on&&on.scrollIntoView)on.scrollIntoView({inline:'center',block:'nearest'});
 }
 function drawBody(){
@@ -2250,8 +2263,8 @@ function drawBody(){
   if(S.detErr){b.innerHTML=`<div class="banner er"><b>Server konnte nicht geladen werden.</b><br>${esc(S.detErr)}<button class="btn" data-a="retry-srv">${ico('refresh',18)}Erneut versuchen</button></div>`;return}
   if(!S.perm){b.innerHTML='<p class="empty">Lade …</p>';return}
   if(S.blk){b.innerHTML=`<p class="empty">Solange das so ist, lässt sich der Server hier nicht verwalten.</p><button class="btn" data-a="retry-srv">${ico('refresh',18)}Neu laden</button>`;return}
-  if(!TABS.find(x=>x[0]===S.tab&&can(x[3])&&(x[0]!=='plg'||isMc(S.srv))))S.tab='set';
-  ({con:drawCon,fil:drawFil,plg:drawPlg,bak:drawBak,sch:drawSch,dbs:drawDbs,net:drawNet,sta:drawSta,set:drawSet})[S.tab]();
+  if(!TABS.find(x=>x[0]===S.tab&&tabOk(x)))S.tab='set';
+  ({con:drawCon,mcx:drawMcx,fil:drawFil,plg:drawPlg,bak:drawBak,sch:drawSch,dbs:drawDbs,net:drawNet,sta:drawSta,set:drawSet})[S.tab]();
 }
 async function setTab(t){
   if(t===S.tab)return;
@@ -2944,27 +2957,90 @@ async function dbOpen(id){
   else if(r==='del'){if(await yes('Datenbank löschen?','<b>'+esc(d.name)+'</b> und alle Daten darin werden endgültig gelöscht.','Löschen',true)&&await act(()=>api('DELETE',SP('/databases/'+encodeURIComponent(d.id))),'Gelöscht'))loadDbs(true)}
 }
 
-/* ===== Netzwerk ===== */
-const loadNet=quiet=>loadT('net',async()=>lst(await api('GET',SP('/network/allocations'))),quiet);
+/* ===== Netzwerk: Adressen zum Verbinden, Ports, Freigabe im Router ===== */
+const hpNow=()=>{const p=cur();return!!(p&&p.hp)};
+const loadNet=quiet=>loadT('net',async()=>{
+  const al=lst(await api('GET',SP('/network/allocations')));let hn=null,pr=null;
+  if(hpNow()){const id=S.srv.id;[hn,pr]=await Promise.all([api('GET','',{base:'/api/handy/network',q:S.netRf?{refresh:1}:undefined,timeout:20000}).catch(e=>({err:e&&e.status===404?'old':fe(e)})),api('GET','',{base:'/api/handy/probe',q:{server:id},timeout:12000}).catch(()=>null)]);S.netRf=0}
+  return{al,hn,pr};
+},quiet);
 const alAddr=a=>(a.ip_alias||a.ip)+':'+a.port;
+const mcA=(h,port)=>port==25565?h:h+':'+port; // Minecraft braucht den Standard-Port nicht
+const cpyB=v=>`<button class="iconbtn" data-a="cpy" data-v="${esc(v)}" aria-label="Kopieren">${ico('copy',16)}</button>`;
+function netStatus(pr,mc,ll){
+  if(!pr)return'';
+  if(pr.online){if(mc)return`<div class="nst on">${pr.favicon?`<img src="${esc(pr.favicon)}" alt="" width="40" height="40">`:`<span class="ib sm">${ico('cube',20)}</span>`}<span><b>● Online</b> · ${esc(pr.version||'Minecraft')} · ${pr.players?pr.players.online+' / '+pr.players.max+' Spieler':''}${pr.ms?' · '+pr.ms+' ms':''}<small>${esc(pr.motd||'')}${pr.players&&pr.players.sample&&pr.players.sample.length?' · '+esc(pr.players.sample.join(', ')):''}</small></span></div>`;
+    if(ll)return`<div class="nst on"><span class="ib sm">${ico('music',20)}</span><span><b>● Bereit</b>${pr.version?' · Lavalink '+esc(pr.version):''}${pr.err?' · '+esc(pr.err):''}<small>${pr.sources&&pr.sources.length?'Quellen: '+esc(pr.sources.join(', ')):''}${pr.plugins&&pr.plugins.length?' · Plugins: '+esc(pr.plugins.join(', ')):''}</small></span></div>`;
+    return`<div class="nst on"><span><b>● Erreichbar</b> auf Port ${pr.port}</span></div>`}
+  return`<div class="nst"><span><b>○ ${pr.state==='offline'?'Server ist aus':pr.state==='starting'?'Startet …':'Antwortet (noch) nicht'}</b><small>${pr.state==='offline'?'Starte ihn in der Konsole – dann siehst du hier, ob er erreichbar ist.':pr.state==='starting'?'Gleich geht es los – Minecraft braucht beim ersten Start etwas länger.':pr.err&&pr.err!=='aus'?esc(pr.err):'Der Port ist noch nicht offen.'}</small></span></div>`}
+const LLS=[['shoukaku','Node.js · Shoukaku'],['llc','Node.js · lavalink-client'],['wavelink','Python · wavelink'],['raw','Nur die Daten']];
+function llSnip(k,h,port,pw){
+  if(k==='shoukaku')return`const { Shoukaku, Connectors } = require('shoukaku');\nconst Nodes = [{ name: 'Toolbox', url: '${h}:${port}', auth: '${pw}' }];\nconst shoukaku = new Shoukaku(new Connectors.DiscordJS(client), Nodes);`;
+  if(k==='llc')return`const { LavalinkManager } = require('lavalink-client');\nclient.lavalink = new LavalinkManager({\n  nodes: [{ id: 'Toolbox', host: '${h}', port: ${port}, authorization: '${pw}', secure: false }],\n  sendToShard: (id, payload) => client.guilds.cache.get(id)?.shard?.send(payload),\n  client: { id: client.user.id },\n});`;
+  if(k==='wavelink')return`import wavelink\nnode = wavelink.Node(uri='http://${h}:${port}', password='${pw}')\nawait wavelink.Pool.connect(nodes=[node], client=bot)`;
+  return`Host:     ${h}\nPort:     ${port}\nPasswort: ${pw}\nSSL/Secure: nein (http/ws)\nLavalink-Version: 4`}
+function netConnect(d){
+  const a=d.al,def=a.find(x=>x.is_default)||a[0],mc=isMc(S.srv),ll=isLl(S.srv),N=S.nx||(S.nx={});if(!def)return'';const port=def.port;
+  if(!hpNow()){ // Pterodactyl: Adresse aus dem Panel
+    const host=def.ip_alias||(def.ip&&def.ip!=='0.0.0.0'?def.ip:(S.srv.sftp&&S.srv.sftp.ip)||def.ip),ad=mc?mcA(host,port):host+':'+port;
+    return`<div class="ncard"><h3>${mc?'So verbinden sich Spieler':'Adresse des Servers'}</h3><div class="nrow"><span>${ico('globe',18)}</span><code>${esc(ad)}</code>${cpyB(ad)}</div>${mc?`<p class="st">In Minecraft: Mehrspieler → Server hinzufügen → diese Adresse eintragen.</p><button class="btn" data-a="net-chk" data-h="${esc(host)}" data-p="${port}">${ico('check',18)}Von außen testen</button>${N.chk?N.chk:''}`:''}</div>`}
+  const n=d.hn&&!d.hn.err?d.hn:null;
+  if(d.hn&&d.hn.err==='old')return`<div class="banner">Die Netzwerk-Infos (IP-Adressen, Portfreigabe) gibt es ab Handy-Panel 1.3. Aktualisiere es: Regler-Symbol → „Handy-Panel: Fernzugriff, Koppeln, Update“.</div>`;
+  if(!n)return`<div class="banner er">Netzwerk-Infos nicht verfügbar: ${esc((d.hn&&d.hn.err)||'?')}</div>`;
+  const lan=(n.lan.find(x=>!x.virt)||n.lan[0]||{}).ip,pub=n.public.v4,fw=(n.maps||[]).filter(m=>m.port===port),fok=fw.some(m=>m.ok!==false),ferr=fw.find(m=>m.ok===false);
+  const A=h=>mc?mcA(h,port):h+':'+port,row=(ic,l,v,sub)=>`<div class="nrow"><span title="${esc(l)}">${ico(ic,18)}</span><div><small>${l}</small><code>${esc(v)}</code>${sub?`<em>${sub}</em>`:''}</div>${cpyB(v)}</div>`;
+  let h=`<div class="ncard"><h3>${mc?'So verbinden sich Spieler':ll?'Lavalink erreichen':'Adressen des Servers'}</h3>${netStatus(d.pr,mc,ll)}`;
+  if(lan)h+=row('wifi','Im selben WLAN / Heimnetz',A(lan),mc?'Mehrspieler → Server hinzufügen':'');
+  if(pub)h+=row('globe','Über das Internet',A(pub),fok?'✓ im Router freigegeben'+(n.upnp.router?' ('+esc(n.upnp.router)+')':''):ferr?'✗ Freigabe fehlgeschlagen: '+esc(ferr.err):'nur mit Portfreigabe im Router');
+  if(n.public.v6)h+=row('globe','Internet (IPv6, nur wenn der Spieler auch IPv6 hat)',mc&&port==25565?n.public.v6:'['+n.public.v6+']:'+port,'');
+  h+=row('server','Auf diesem Gerät',A('localhost'),'');
+  if(n.cgnat)h+=`<div class="banner"><b>Achtung: Dein Anschluss hat keine eigene öffentliche IPv4-Adresse</b> (CGNAT/DS-Lite, mobiles Netz oder doppelter Router). Portfreigaben wirken dann nicht von außen. Lösung: ein kostenloser Spiele-Tunnel wie <b>playit.gg</b> (siehe unten) oder beim Anbieter eine öffentliche IPv4 anfragen.</div>`;
+  if(n.termux&&lan&&/^10\.|^100\./.test(lan)&&!/^10\.0\.|^10\.1\./.test(lan))h+=`<p class="st">Das Handy scheint über mobile Daten online zu sein – dann ist der Server nur über einen Tunnel (z. B. playit.gg) von außen erreichbar. Im WLAN klappt es direkt.</p>`;
+  h+=`<div class="grid2">${fok?`<button class="btn" data-a="net-up" data-p="${port}" data-on="0">${ico('x',18)}Freigabe entfernen</button>`:`<button class="btn pri" data-a="net-up" data-p="${port}" data-on="1"${n.upnp.state==='ok'?'':' title="Kein Router mit UPnP gefunden"'}>${ico('globe',18)}Im Router freigeben</button>`}${mc&&pub?`<button class="btn" data-a="net-chk" data-h="${esc(pub)}" data-p="${port}">${ico('check',18)}Von außen testen</button>`:`<button class="btn" data-a="net-rf">${ico('refresh',18)}Neu prüfen</button>`}</div>`;
+  if(N.chk)h+=N.chk;
+  h+=`<p class="st">Router: ${n.upnp.state==='ok'?'✓ '+esc(n.upnp.router||'gefunden')+' – automatische Portfreigabe (UPnP) möglich':n.upnp.state==='keins'?'kein Router mit UPnP gefunden – Freigabe von Hand (siehe unten)':'nicht erreichbar'+(n.upnp.err?' ('+esc(n.upnp.err)+')':'')}${n.upnp.external&&n.upnp.external!==pub?' · Router meldet IP '+esc(n.upnp.external):''}</p>`;
+  if(ll){const pw=(d.pr&&d.pr.password)||'',hk=N.llh||'local',hh=hk==='local'?'127.0.0.1':hk==='lan'?(lan||'IP'):(pub||'IP'),k=N.lls||'shoukaku';
+    h+=`<h3 style="margin-top:16px">Zugangsdaten für deinen Bot</h3><div class="kv">${kvr('Host',hh,1)}${kvr('Port',String(port),1)}<span>Passwort</span><span>${N.pw?esc(pw):'••••••••••'}</span><span style="display:flex;gap:4px"><button class="iconbtn" data-a="ll-pw" aria-label="Anzeigen">${ico('eye',16)}</button>${cpyB(pw)}</span>${kvr('Sicher (SSL)','nein')}</div>
+    <label>Dein Bot läuft …</label><div class="seg" id="llh">${[['local','auf diesem Gerät'],['lan','im WLAN'],['pub','woanders']].map(([v,l])=>`<button data-v="${v}"${hk===v?' class="on"':''}>${l}</button>`).join('')}</div>
+    ${hk==='pub'?'<p class="st">Dafür muss der Port im Router freigegeben sein (Knopf oben). Gib das Passwort an niemanden weiter.</p>':''}
+    <label>Beispiel</label><select id="lls">${LLS.map(([v,l])=>`<option value="${v}"${v===k?' selected':''}>${l}</option>`).join('')}</select>
+    <div class="srcbox" style="white-space:pre-wrap;word-break:break-all;user-select:text;margin-top:8px">${esc(llSnip(k,hh,port,pw))}</div><button class="btn" data-a="cpy" data-v="${esc(llSnip(k,hh,port,pw))}">${ico('copy',18)}Beispiel kopieren</button>
+    <p class="st">Läuft dein Bot im selben Handy-Panel (Node.js- oder Python-Server), nimm „auf diesem Gerät“. YouTube-Suche: <code>ytsearch:Lied</code>, SoundCloud: <code>scsearch:Lied</code>.</p>`}
+  h+=`<details class="dt"><summary>Port von Hand im Router freigeben</summary><p class="st">Falls der Knopf oben nicht klappt: Im Router eine Portfreigabe einrichten – Protokoll <b>TCP</b>${mc?' (für Bedrock/Geyser zusätzlich UDP)':''}, Port <b>${port}</b>, an das Gerät <b>${esc(lan||'mit dem Panel')}</b>.<br>• <b>FRITZ!Box</b>: Internet → Freigaben → Portfreigaben → Gerät für Freigaben hinzufügen → Neue Freigabe → Portfreigabe.<br>• <b>Telekom Speedport</b>: Internet → Portfreischaltung.<br>• <b>Vodafone/andere</b>: meist unter „Port Forwarding“ oder „NAT“.<br>Danach mit „Von außen testen“ prüfen. Gib deinem Gerät im Router am besten eine feste IP, sonst passt die Freigabe nach einem Neustart evtl. nicht mehr.</p></details>
+  <details class="dt"><summary>Kein Zugriff auf den Router? Spiele-Tunnel</summary><p class="st">Mit <b>playit.gg</b> (kostenlos) bekommt dein Server eine feste Adresse aus dem Internet – ganz ohne Portfreigabe, auch bei CGNAT oder mobilen Daten. Konto auf playit.gg anlegen, den „playit“-Agenten auf diesem Gerät installieren (Linux/Windows/Mac; auf Android über Termux), einen „Minecraft Java“-Tunnel auf <b>127.0.0.1:${port}</b> anlegen und die angezeigte Adresse an deine Freunde geben.<br>Der Fernzugriff des Handy-Panels gilt nur für die App, nicht für Spieler.</p></details></div>`;
+  return h;
+}
 function drawNet(){
-  shell('net',()=>loadNet(),a=>{
-    const lim=(S.srv.fl||{}).allocations;
-    return hd('Netzwerk',a.length+(lim!=null?' / '+lim:''))
+  shell('net',()=>loadNet(),d=>{
+    const a=d.al,lim=(S.srv.fl||{}).allocations;
+    return netConnect(d)+hd('Ports',a.length+(lim!=null?' / '+lim:''))
      +(can('allocation.create')?`<button class="btn" data-a="net-new">${ico('plus',18)}Weitere Adresse zuweisen</button>`:'')
-     +`<div class="list">${a.map(x=>`<div class="item"><button class="itb" data-a="net-menu" data-i="${esc(x.id)}"><span class="ib sm">${ico('globe',18)}</span><span class="tx"><b>${esc(alAddr(x))}${x.is_default?'<span class="tag g">Hauptadresse</span>':''}</b><small>${esc(x.notes||'Keine Notiz')}</small></span></button>${ico('chev',16)}</div>`).join('')}</div>${a.length?'':'<p class="empty">Keine Adressen zugewiesen.</p>'}
-     <p class="st">Mit dieser Adresse verbinden sich z. B. Spieler. Die Hauptadresse nutzt der Server als Standard-Port.</p>`;
+     +`<div class="list">${a.map(x=>`<div class="item"><button class="itb" data-a="net-menu" data-i="${esc(x.id)}"><span class="ib sm">${ico('globe',18)}</span><span class="tx"><b>${esc(hpNow()?'Port '+x.port:alAddr(x))}${x.is_default?'<span class="tag g">Hauptadresse</span>':''}${d.hn&&d.hn.maps&&d.hn.maps.some(m=>m.port===x.port&&m.ok!==false)?'<span class="tag">im Router frei</span>':''}</b><small>${esc(x.notes||'Keine Notiz')}</small></span></button>${ico('chev',16)}</div>`).join('')}</div>${a.length?'':'<p class="empty">Keine Adressen zugewiesen.</p>'}
+     <p class="st">Die Hauptadresse nutzt der Server als Standard-Port${hpNow()?' – eine Änderung gilt ab dem nächsten Start. Weitere Ports brauchst du z. B. für Bedrock (Geyser), Voice-Chat oder Dynmap':''}.</p>`;
   });
 }
 async function netMenu(id){
-  const L=S.ld.net&&S.ld.net.data,x=L&&L.find(a=>String(a.id)===String(id));if(!x)return;const up=can('allocation.update');
-  const a=await menu(alAddr(x),[{id:'cp',label:'Adresse kopieren',icon:'copy'},up&&{id:'nt',label:'Notiz ändern',icon:'edit'},up&&!x.is_default&&{id:'pr',label:'Als Hauptadresse festlegen',icon:'check'},can('allocation.delete')&&!x.is_default&&{id:'del',label:'Entfernen',icon:'trash',warn:1}]);
+  const L=S.ld.net&&S.ld.net.data,x=L&&L.al.find(a=>String(a.id)===String(id));if(!x)return;const up=can('allocation.update'),hp=hpNow(),fw=hp&&L.hn&&L.hn.maps&&L.hn.maps.some(m=>m.port===x.port);
+  const a=await menu(hp?'Port '+x.port:alAddr(x),[{id:'cp',label:'Port kopieren',icon:'copy'},hp&&{id:'up',label:fw?'Freigabe im Router entfernen':'Im Router freigeben (TCP + UDP)',icon:'globe'},up&&{id:'nt',label:'Notiz ändern',icon:'edit'},up&&!x.is_default&&{id:'pr',label:'Als Hauptadresse festlegen',icon:'check'},can('allocation.delete')&&!x.is_default&&{id:'del',label:'Entfernen',icon:'trash',warn:1}]);
   if(!a)return;const p='/network/allocations/'+encodeURIComponent(x.id);
-  if(a==='cp')copyText(alAddr(x));
+  if(a==='cp')copyText(hp?String(x.port):alAddr(x));
+  else if(a==='up')netUp(x.port,!fw,'BOTH');
   else if(a==='nt'){const v=await ask({title:'Notiz',fields:[{id:'n',label:'Notiz',value:x.notes||'',max:100}],ok:'Speichern'});if(v&&await act(()=>api('POST',SP(p),{json:{notes:v.n.trim()||null}})))loadNet(true)}
   else if(a==='pr'){if(await act(()=>api('POST',SP(p+'/primary')),'Hauptadresse geändert'))loadNet(true)}
-  else if(a==='del'){if(await yes('Adresse entfernen?','<b>'+esc(alAddr(x))+'</b> wird diesem Server wieder weggenommen.','Entfernen',true)&&await act(()=>api('DELETE',SP(p)),'Entfernt'))loadNet(true)}
+  else if(a==='del'){if(await yes('Adresse entfernen?','<b>'+esc(hp?'Port '+x.port:alAddr(x))+'</b> wird diesem Server wieder weggenommen.','Entfernen',true)&&await act(()=>api('DELETE',SP(p)),'Entfernt'))loadNet(true)}
 }
+async function netUp(port,on,proto){
+  if(on&&!await yes('Port im Router freigeben?','Port <b>'+port+'</b> wird über UPnP im Router geöffnet. Dann ist dein Server <b>aus dem ganzen Internet</b> erreichbar. Für Minecraft ist das gewollt – nutze trotzdem eine Whitelist, wenn nur Freunde spielen sollen.','Freigeben'))return;
+  toast(on?'Frage den Router …':'Entferne Freigabe …');
+  if(await act(()=>api('POST','',{base:'/api/handy/upnp',json:{port,proto:proto||(isMc(S.srv)?'BOTH':'TCP'),on,name:S.srv.name},timeout:30000}),on?'✓ Im Router freigegeben':'Freigabe entfernt'))loadNet(true)}
+// Prüft über mcsrvstat.us (von außen), ob Spieler den Server erreichen
+async function netChk(h,port){
+  const N=S.nx||(S.nx={});N.chk=`<div class="diag">${dg('..','Teste '+esc(h+':'+port)+' von außen …')}</div>`;redraw('net');
+  try{const r=await fetch('https://api.mcsrvstat.us/3/'+encodeURIComponent(h+':'+port),{cache:'no-store'}),j=await r.json();
+    N.chk=j.online?`<div class="diag">${dg('ok','Von außen erreichbar ✓',esc((j.version||'')+' · '+((j.players&&j.players.online)||0)+' / '+((j.players&&j.players.max)||0)+' Spieler'+(j.motd&&j.motd.clean?' · '+j.motd.clean.join(' '):'')))}</div>`
+     :`<div class="diag">${dg('er','Von außen nicht erreichbar',(j.debug&&j.debug.ping===false&&j.debug.query===false?'Keine Antwort auf '+esc(h+':'+port)+'. ':'')+'Läuft der Server? Ist der Port im Router freigegeben (Knopf oben)? Bei CGNAT/mobilem Netz geht es nur über einen Tunnel. Hinweis: Der Test merkt sich Ergebnisse ein paar Minuten.')}</div>`}
+  catch(e){N.chk=`<div class="diag">${dg('er','Test nicht möglich','Der Prüfdienst mcsrvstat.us ist nicht erreichbar.')}</div>`}
+  redraw('net')}
 
 /* ===== Startup ===== */
 const loadSta=quiet=>loadT('sta',async()=>{const r=await api('GET',SP('/startup'));return{vars:lst(r),meta:r.meta||{}}},quiet);
@@ -3029,16 +3105,19 @@ Object.assign(H,{
   },
   'db-new':()=>dbNew(),'db-open':b=>dbOpen(b.dataset.i),
   'net-new':async()=>{if(await act(()=>api('POST',SP('/network/allocations')),'Adresse zugewiesen'))loadNet(true)},'net-menu':b=>netMenu(b.dataset.i),
+  'net-up':b=>netUp(+b.dataset.p,b.dataset.on==='1'),'net-chk':b=>netChk(b.dataset.h,+b.dataset.p),'net-rf':()=>{S.netRf=1;S.nx={};loadNet()},
+  'll-pw':()=>{const N=S.nx||(S.nx={});N.pw=!N.pw;redraw('net')},
   'var-edit':b=>varEdit(b.dataset.k),
   'set-ren':()=>setRen(),'set-rei':()=>setRei(),
   cpy:b=>copyText(b.dataset.v)
 });
 /* ----- Minecraft: Plugins & Mods von Modrinth ----- */
-Object.assign(P,{puzzle:'<path d="M10 3a2 2 0 014 0v2h4a1 1 0 011 1v4h-2a2 2 0 000 4h2v4a1 1 0 01-1 1h-4v-2a2 2 0 00-4 0v2H6a1 1 0 01-1-1v-4h2a2 2 0 000-4H5V6a1 1 0 011-1h4z"/>'});
+Object.assign(P,{cube:'<path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/>',wifi:'<path d="M2 9a15 15 0 0120 0M5 12.5a10 10 0 0114 0M8.5 16a5 5 0 017 0"/><circle cx="12" cy="19.5" r="1"/>',music:'<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',users2:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0"/>',puzzle:'<path d="M10 3a2 2 0 014 0v2h4a1 1 0 011 1v4h-2a2 2 0 000 4h2v4a1 1 0 01-1 1h-4v-2a2 2 0 00-4 0v2H6a1 1 0 01-1-1v-4h2a2 2 0 000-4H5V6a1 1 0 011-1h4z"/>'});
 const MR='https://api.modrinth.com/v2';
 const LOADERS={paper:['paper','purpur','spigot','bukkit','folia'],fabric:['fabric']};
 const LNAME={paper:'Paper/Spigot (Plugins)',fabric:'Fabric (Mods)'};
-const isMc=s=>/java|\.jar\b/i.test((s&&(s.inv||s.image))||'');
+const isLl=s=>/lavalink/i.test((s&&s.inv)||'');
+const isMc=s=>!isLl(s)&&/java|\.jar\b/i.test((s&&(s.inv||s.image))||'');
 const enc2=encodeURIComponent;
 // Art (Paper/Fabric) und Minecraft-Version eines Servers erkennen
 async function mcInfo(p,id){
@@ -3105,6 +3184,153 @@ Object.assign(H,{
   'mc-set':async()=>{const M=S.mc;const v=await ask({title:'Art und Version',desc:'Normalerweise erkennt die App das selbst. Stell es hier ein, falls nicht.',fields:[{id:'l',type:'select',label:'Art',value:M.info.loader||'',opts:[['paper','Paper/Spigot/Purpur (Plugins)'],['fabric','Fabric (Mods)'],['','Vanilla (keine Plugins)']]},{id:'v',label:'Minecraft-Version',value:M.info.version||'',ph:'z. B. 1.21.11'}],ok:'Übernehmen'});
     if(!v)return;M.info={loader:v.l||null,version:v.v.trim()||null,dir:v.l==='fabric'?'/mods':'/plugins'};M.res=null;M.inst=await mcList(cur(),S.srv.id,M.info);drawPlg()}
 });
+/* ===== Minecraft: Übersicht, Spieler, Einstellungen (server.properties), Welt ===== */
+const PROPS=[['motd','Beschreibung in der Serverliste (MOTD)','text','','all'],['max-players','Maximale Spieler','num','','all'],
+  ['gamemode','Spielmodus','sel',[['survival','Überleben'],['creative','Kreativ'],['adventure','Abenteuer'],['spectator','Zuschauer']],'all'],
+  ['difficulty','Schwierigkeit','sel',[['peaceful','Friedlich'],['easy','Einfach'],['normal','Normal'],['hard','Schwer']],'all'],
+  ['hardcore','Hardcore (ein Leben)','bool','','all'],['pvp','PvP – Spieler können sich angreifen','bool','','all'],['force-gamemode','Spielmodus beim Beitreten erzwingen','bool','','all'],
+  ['white-list','Whitelist – nur eingetragene Spieler','bool','','acc'],['enforce-whitelist','Nicht eingetragene sofort rauswerfen','bool','','acc'],
+  ['online-mode','Nur echte Minecraft-Konten (online-mode)','bool','Aus = auch Spieler ohne gekauftes Minecraft. Dann kann sich jeder als jeder ausgeben – nur mit Login-Plugin!','acc'],
+  ['allow-flight','Fliegen erlauben (für manche Plugins/Mods nötig)','bool','','acc'],['spawn-protection','Spawn-Schutz (Radius in Blöcken, 0 = aus)','num','','acc'],
+  ['level-seed','Seed (gilt nur für neue Welten)','text','','wld'],['level-type','Welttyp (gilt nur für neue Welten)','sel',[['minecraft:normal','Normal'],['minecraft:flat','Flach'],['minecraft:large_biomes','Große Biome'],['minecraft:amplified','Zerklüftet']],'wld'],
+  ['generate-structures','Strukturen (Dörfer, Tempel …)','bool','','wld'],['allow-nether','Nether','bool','','wld'],['spawn-monsters','Monster','bool','','wld'],
+  ['view-distance','Sichtweite in Chunks','num','Weniger = weniger Last. Auf dem Handy 6–8.','perf'],['simulation-distance','Simulationsweite in Chunks','num','','perf'],
+  ['enable-command-block','Befehlsblöcke','bool','','misc'],['resource-pack','Ressourcenpaket (Download-Adresse)','text','','misc'],['require-resource-pack','Ressourcenpaket erzwingen','bool','','misc']];
+const PGRP=[['all','Allgemein'],['acc','Zugang & Sicherheit'],['wld','Welt'],['perf','Leistung'],['misc','Sonstiges']];
+const pDec=v=>v.replace(/\\u([0-9a-fA-F]{4})/g,(m,h)=>String.fromCharCode(parseInt(h,16))).replace(/\\(.)/g,'$1');
+const pEnc=v=>String(v).replace(/\\/g,'\\\\').replace(/[:=]/g,m=>'\\'+m).replace(/[^\x20-\x7e]/g,c=>'\\u'+c.charCodeAt(0).toString(16).padStart(4,'0'));
+function parseProps(t){const o={};String(t||'').split(/\r?\n/).forEach(l=>{if(/^\s*[#!]/.test(l))return;const m=/^\s*([^=:\s]+)\s*[=:]\s?(.*)$/.exec(l);if(m)o[m[1]]=pDec(m[2])});return o}
+function setProps(t,ch){let x=String(t||'');for(const[k,v]of Object.entries(ch)){const re=new RegExp('^'+k.replace(/[.\-]/g,'\\$&')+'\\s*[=:].*$','m'),line=k+'='+pEnc(v);x=re.test(x)?x.replace(re,()=>line):x+(x&&!x.endsWith('\n')?'\n':'')+line+'\n'}return x}
+const jarr=t=>{try{const a=JSON.parse(t||'[]');return Array.isArray(a)?a:[]}catch(e){return[]}};
+const pName=n=>/^[.*]?[A-Za-z0-9_]{2,16}$/.test(n);
+const mxRun=()=>S.state&&S.state!=='offline';
+async function mxTxt(f){try{const t=await api('GET',SP('/files/contents'),{q:{file:f},as:'text',timeout:20000});return t==null?'':String(t)}catch(e){if(e&&e.status===404)return null;throw e}}
+async function mxLoad(quiet){
+  const M=S.mx,id=S.srv.id;M.err=null;
+  try{const[pt,wl,op,bn,eu,inf,vars]=await Promise.all([mxTxt('/server.properties'),mxTxt('/whitelist.json'),mxTxt('/ops.json'),mxTxt('/banned-players.json'),mxTxt('/eula.txt'),mcInfo(cur(),id).catch(()=>null),can('startup.read')?api('GET',SP('/startup')).then(lst).catch(()=>[]):[]]);
+    if(!S.srv||S.srv.id!==id)return;
+    Object.assign(M,{ptxt:pt||'',pp:parseProps(pt),wl:jarr(wl),ops:jarr(op),ban:jarr(bn),eula:eu==null?null:/^\s*eula\s*=\s*true/im.test(eu),info:inf,vars,fresh:pt==null});
+    if(hpNow())M.pr=await api('GET','',{base:'/api/handy/probe',q:{server:id},timeout:12000}).catch(()=>null);
+  }catch(e){M.err=fe(e)}
+  M.ld=0;if(S.tab==='mcx')drawMcx();
+  if(M.sec==='ply'&&mxRun()&&!quiet)mxOnline();
+}
+async function mxOnline(){const M=S.mx;if(!M||M.onl==='…')return;M.onl='…';if(S.tab==='mcx')drawMcx();
+  try{const x=await conRead(cur(),S.srv.id,{cmd:'list',ms:2500}),t=x.lines.join('\n'),m=/There are (\d+) (?:of a max(?: of)?|out of maximum) (\d+) players online[.:]?\s*([^\n]*)/i.exec(t);
+    M.onl=m?{n:+m[1],max:+m[2],names:m[3].split(/,\s*/).map(x=>x.replace(/§./g,'').trim()).filter(Boolean)}:{n:null,names:[],raw:x.lines.slice(-3).join(' ')}}
+  catch(e){M.onl={err:fe(e),names:[]}}if(S.tab==='mcx')drawMcx()}
+function drawMcx(){
+  const b=$('#svB',el);if(!b)return;const M=S.mx||(S.mx={sec:'over',ld:0});
+  if(M.err&&!M.pp){b.innerHTML=`<div class="banner er">${esc(M.err)}<button class="btn" data-a="mx-re">${ico('refresh',18)}Erneut versuchen</button></div>`;return}
+  if(!M.pp){b.innerHTML='<p class="empty">Lade Minecraft-Infos …</p>';if(!M.ld){M.ld=1;mxLoad()}return}
+  b.innerHTML=`<div class="seg" id="mxs" style="margin-top:12px">${[['over','Übersicht'],['ply','Spieler'],['set','Einstellungen'],['wld','Welt']].map(([k,l])=>`<button data-v="${k}"${k===M.sec?' class="on"':''}>${l}</button>`).join('')}</div>`+({over:mxOver,ply:mxPly,set:mxSet,wld:mxWld})[M.sec](M);
+}
+const verVar=M=>(M.vars||[]).find(v=>/^(MINECRAFT_VERSION|MC_VERSION|VERSION)$/.test(v.env_variable||''));
+function mxOver(M){
+  const P=M.pp,I=M.info||{},on=v=>v==='true'?'an':'aus',vv=verVar(M),mem=+(S.srv.limits||{}).memory||0,g=k=>{const r=PROPS.find(x=>x[0]===k);const o=r&&Array.isArray(r[3])&&r[3].find(x=>x[0]===P[k]);return o?o[1]:P[k]||'–'};
+  return`${M.eula===false?`<div class="banner er"><b>Die Minecraft-EULA ist nicht akzeptiert</b> – ohne sie startet der Server nicht.<button class="btn" data-a="mx-eula">${ico('check',18)}EULA lesen und akzeptieren</button></div>`:''}
+  ${M.fresh?'<div class="banner">Der Server ist noch nie gelaufen. Starte ihn einmal – dann legt Minecraft die Einstellungen und die Welt an.</div>':''}
+  ${hpNow()?netStatus(M.pr,true,false):`<div class="nst${mxRun()?' on':''}"><span><b>${mxRun()?'● Läuft':'○ Aus'}</b></span></div>`}
+  <div class="kv">${kvr('Software',I.loader?LNAME[I.loader]:'Vanilla')}${kvr('Version',I.version||(vv&&(vv.server_value||vv.default_value))||'unbekannt')}${kvr('Spielmodus',g('gamemode'))}${kvr('Schwierigkeit',g('difficulty'))}${kvr('Max. Spieler',P['max-players']||'–')}${kvr('Whitelist',on(P['white-list']))}${kvr('Echte Konten',P['online-mode']==='false'?'aus (cracked)':'an')}${kvr('Welt',P['level-name']||'world')}${kvr('RAM',mem?mem+' MB':'unbegrenzt')}</div>
+  ${mem&&mem<1024?'<p class="st">Tipp: Unter 1 GB RAM ruckelt Minecraft schnell. Für 2–5 Spieler sind 1,5–2 GB gut (Einstellungen → Ressourcen bzw. im Admin-Bereich).</p>':''}
+  <div class="grid2"><button class="btn" data-a="tab" data-t="net">${ico('globe',18)}Adresse & Netzwerk</button>${can('file.create')&&I.loader?`<button class="btn" data-a="tab" data-t="plg">${ico('puzzle',18)}${I.loader==='fabric'?'Mods':'Plugins'}</button>`:`<button class="btn" data-a="mx-sec" data-v="set">${ico('sliders',18)}Einstellungen</button>`}</div>
+  ${vv&&can('startup.update')?`<button class="btn" data-a="mx-ver">${ico('refresh',18)}Minecraft-Version ändern</button>`:''}
+  <p class="st">Spieler verwalten, server.properties bequem bearbeiten und die Welt sichern oder neu erzeugen: oben die Bereiche wählen.</p>`}
+function mxPly(M){
+  const O=M.onl,row=(n,meta,a)=>`<div class="item"><span class="ib sm" style="overflow:hidden"><img src="https://mc-heads.net/avatar/${encodeURIComponent(n.replace(/^[.*]/,''))}/36" alt="" width="36" height="36" loading="lazy" onerror="this.remove()"></span><span class="tx"><b>${esc(n)}</b>${meta?`<small>${meta}</small>`:''}</span>${a}</div>`;
+  const mb=(k,n)=>`<button class="iconbtn" data-a="mx-pm" data-k="${k}" data-n="${esc(n)}" aria-label="Aktionen">${ico('more',18)}</button>`;
+  let h=`<div class="grid2" style="margin-top:12px"><button class="btn pri" data-a="mx-add">${ico('plus',18)}Spieler eintragen</button><button class="btn" data-a="mx-onl"${mxRun()?'':' disabled'}>${ico('refresh',18)}Wer ist online?</button></div>`;
+  h+=hd('Online',O&&O.n!=null?O.n+(O.max?' / '+O.max:''):null);
+  if(!mxRun())h+='<p class="empty">Der Server ist aus.</p>';
+  else if(!O||O==='…')h+='<p class="empty">Frage den Server …</p>';
+  else if(O.err)h+=`<p class="st err">${esc(O.err)}</p>`;
+  else h+=O.names.length?`<div class="list">${O.names.map(n=>row(n,'online',mb('on',n))).join('')}</div>`:'<p class="empty">Niemand online.</p>';
+  h+=hd('Whitelist',M.wl.length,`<button class="chipb${M.pp['white-list']==='true'?' on':''}" data-a="mx-wlt" style="margin-left:auto">${M.pp['white-list']==='true'?'An':'Aus'}</button>`);
+  h+=M.pp['white-list']==='true'?'':'<p class="st">Die Whitelist ist aus – jeder mit der Adresse kann beitreten. Für Freunde-Server einschalten!</p>';
+  h+=M.wl.length?`<div class="list">${M.wl.map(x=>row(x.name,'',`<button class="iconbtn" data-a="mx-rm" data-k="wl" data-n="${esc(x.name)}" aria-label="Entfernen">${ico('trash',18)}</button>`)).join('')}</div>`:'<p class="empty">Niemand eingetragen.</p>';
+  h+=hd('Operatoren (Admins im Spiel)',M.ops.length)+(M.ops.length?`<div class="list">${M.ops.map(x=>row(x.name,'Stufe '+(x.level||4),`<button class="iconbtn" data-a="mx-rm" data-k="op" data-n="${esc(x.name)}" aria-label="Rechte entziehen">${ico('trash',18)}</button>`)).join('')}</div>`:'<p class="empty">Keine.</p>');
+  h+=hd('Gebannt',M.ban.length)+(M.ban.length?`<div class="list">${M.ban.map(x=>row(x.name,esc(x.reason||'')+(x.expires&&x.expires!=='forever'?' · bis '+esc(x.expires):''),`<button class="iconbtn" data-a="mx-rm" data-k="ban" data-n="${esc(x.name)}" aria-label="Entbannen">${ico('check',18)}</button>`)).join('')}</div>`:'<p class="empty">Niemand.</p>');
+  return h+`<p class="st">${mxRun()?'Änderungen gehen direkt an den laufenden Server.':'Der Server ist aus: Entfernen geht sofort, Eintragen holt die Spieler-ID von Mojang (nur bei „echten Konten“).'}</p>`}
+function mxSet(M){
+  const P=M.pp,fld=r=>{const[k,l,t,o]=r,v=P[k]!=null?P[k]:'';
+    if(t==='bool')return`<label class="chk"><input type="checkbox" data-pk="${k}"${v==='true'?' checked':''}>${esc(l)}</label>${o?`<p class="st" style="margin:-4px 0 6px 30px">${esc(o)}</p>`:''}`;
+    if(t==='sel')return`<label>${esc(l)}</label><select data-pk="${k}">${o.map(([a,b])=>`<option value="${a}"${a===v||(a==='minecraft:normal'&&/^(default|normal)$/i.test(v))?' selected':''}>${esc(b)}</option>`).join('')}${o.some(x=>x[0]===v)||!v||/^(default|normal)$/i.test(v)?'':`<option value="${esc(v)}" selected>${esc(v)}</option>`}</select>`;
+    return`<label>${esc(l)}</label><input data-pk="${k}" ${t==='num'?'type="number" inputmode="numeric"':''} value="${esc(v)}" autocomplete="off" spellcheck="false">${o?`<p class="st">${esc(o)}</p>`:''}`};
+  return`${M.saved?`<div class="banner ok">Gespeichert. ${mxRun()?'Die meisten Einstellungen wirken erst nach einem <b>Neustart</b>.<button class="btn" data-a="mx-rs">'+ico('refresh',18)+'Jetzt neu starten</button>':'Wirkt beim nächsten Start.'}</div>`:''}
+  ${PGRP.map(([g,l])=>`<details class="dt"${g==='all'?' open':''}><summary>${l}</summary>${PROPS.filter(r=>r[4]===g).map(fld).join('')}</details>`).join('')}
+  <button class="btn pri" data-a="mx-save">${ico('check',18)}Einstellungen speichern</button>
+  <p class="st">Alle weiteren Einträge stehen in der Datei <code>server.properties</code> (Reiter Dateien).</p>`}
+function mxWld(M){
+  const P=M.pp,lv=P['level-name']||'world';
+  return`<div class="kv">${kvr('Welt-Ordner',lv)}${kvr('Seed',M.seed||P['level-seed']||'zufällig',!!(M.seed||P['level-seed']))}${kvr('Welttyp',(PROPS.find(x=>x[0]==='level-type')[3].find(x=>x[0]===P['level-type'])||[0,P['level-type']||'Normal'])[1])}</div>
+  ${mxRun()&&!M.seed?`<button class="btn" data-a="mx-seed">${ico('key',18)}Seed der Welt anzeigen</button>`:''}
+  <button class="btn" data-a="mx-wdl">${ico('down',18)}Welt herunterladen (Sicherung)</button>
+  <button class="btn warn" data-a="mx-wrs">${ico('refresh',18)}Welt neu erzeugen</button>
+  <p class="st">Eigene Welt einspielen: Im Reiter <b>Dateien</b> die ZIP hochladen, entpacken und den Ordner in <b>${esc(lv)}</b> umbenennen (der Server muss dabei aus sein).</p>`}
+async function mxCmd(c){return api('POST',SP('/command'),{json:{command:c}})}
+async function mxAct(k,n,add){
+  const M=S.mx,file={wl:'/whitelist.json',op:'/ops.json',ban:'/banned-players.json'}[k],key={wl:'wl',op:'ops',ban:'ban'}[k];
+  if(mxRun()){const c={wl:add?'whitelist add ':'whitelist remove ',op:add?'op ':'deop ',ban:add?'ban ':'pardon ',kick:'kick '}[k]+n;
+    if(!await act(()=>mxCmd(c),'Gesendet: '+c))return;await sleep(1200);await mxLoad(true);if(k!=='wl')mxOnline();return}
+  if(k==='kick')return info('Server ist aus','Rauswerfen geht nur, wenn der Server läuft.');
+  let L=M[key].slice();
+  if(!add)L=L.filter(x=>String(x.name).toLowerCase()!==n.toLowerCase());
+  else{if(M.pp['online-mode']==='false')return info('Server zuerst starten','Bei ausgeschaltetem online-mode kann die App die Spieler-ID nicht ermitteln. Starte den Server und trage den Spieler dann ein.');
+    let j=null;try{j=await(await fetch('https://playerdb.co/api/player/minecraft/'+encodeURIComponent(n))).json()}catch(e){}
+    const pl=j&&j.success&&j.data&&j.data.player;if(!pl)return info('Spieler nicht gefunden','„'+esc(n)+'“ gibt es bei Mojang nicht (oder der Dienst ist nicht erreichbar). Stimmt die Schreibweise?');
+    if(L.some(x=>x.uuid===pl.id))return toast('Schon eingetragen');
+    const e={uuid:pl.id,name:pl.username};if(k==='op')Object.assign(e,{level:4,bypassesPlayerLimit:false});if(k==='ban')Object.assign(e,{created:new Date().toISOString().replace('T',' ').replace(/\.\d+Z$/,' +0000'),source:'Toolbox',expires:'forever',reason:'Gebannt'});L.push(e)}
+  if(await act(()=>api('POST',SP('/files/write'),{q:{file},text:JSON.stringify(L,null,2)}),add?'Eingetragen':'Entfernt')){M[key]=L;drawMcx()}
+}
+async function mxSave(){
+  const M=S.mx,ch={};el.querySelectorAll('[data-pk]').forEach(i=>{const k=i.dataset.pk,v=i.type==='checkbox'?String(i.checked):i.value.trim(),old=M.pp[k];if(old==null&&(v===''||(i.type==='checkbox'&&v==='false')))return;if(v!==(old==null?'':old))ch[k]=v});
+  if(ch['max-players']&&!(+ch['max-players']>=1))return info('Ungültig','Maximale Spieler muss mindestens 1 sein.');
+  if(ch['online-mode']==='false'&&!await yes('Echte Konten abschalten?','Dann kann jeder unter jedem Namen beitreten – auch als du. Nur mit Login-Plugin (z. B. AuthMe) und Whitelist sinnvoll.','Trotzdem abschalten',true))return;
+  if(!Object.keys(ch).length)return toast('Nichts geändert');
+  const t=setProps(await mxTxt('/server.properties')||M.ptxt,ch);
+  if(await act(()=>api('POST',SP('/files/write'),{q:{file:'/server.properties'},text:t}),'Gespeichert')){M.ptxt=t;M.pp=parseProps(t);M.saved=1;drawMcx();window.scrollTo(0,0)}}
+async function mxVer(){
+  const M=S.mx,vv=verVar(M);if(!vv)return;let rel=[];try{rel=(await(await fetch('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json')).json()).versions.filter(v=>v.type==='release').slice(0,40).map(v=>v.id)}catch(e){}
+  const curV=vv.server_value||vv.default_value||'latest';
+  const v=await ask({title:'Minecraft-Version ändern',desc:'Der Server wird gestoppt und die passende Server-Datei neu geladen. Welt, Plugins und Einstellungen bleiben.<br><b>Wichtig:</b> Eine ältere Version kann eine neuere Welt beschädigen – lade die Welt vorher herunter (Bereich „Welt“). Plugins/Mods müssen zur Version passen.',
+    fields:rel.length?[{id:'v',type:'select',label:'Version',value:curV,opts:[['latest','Neueste (passend zu deinem Java)'],...rel.map(x=>[x,x])].concat(rel.includes(curV)||curV==='latest'?[]:[[curV,curV]])}]:[{id:'v',label:'Version (z. B. 1.21.4 oder latest)',value:curV}],ok:'Ändern und neu installieren'});
+  if(!v||!v.v.trim())return;
+  if(!await act(async()=>{await api('PUT',SP('/startup/variable'),{json:{key:vv.env_variable,value:v.v.trim()}});await api('POST',SP('/settings/reinstall'))},'Neuinstallation mit '+v.v.trim()+' läuft'))return;
+  S.mx=null;S.tab='con';drawTop();drawTabs();drawBody()}
+async function mxWorldReset(){
+  const M=S.mx,lv=M.pp['level-name']||'world';
+  if(mxRun())return info('Erst stoppen','Stoppe den Server, bevor du die Welt neu erzeugst.');
+  const v=await ask({title:'Welt neu erzeugen?','desc':'Die Welt <b>'+esc(lv)+'</b> (mit Nether und End) wird <b>endgültig gelöscht</b>. Beim nächsten Start entsteht eine neue. Lade die alte vorher herunter, wenn du sie behalten willst.',
+    fields:[{id:'seed',label:'Seed für die neue Welt (leer = zufällig)',value:''},{id:'t',type:'select',label:'Welttyp',value:M.pp['level-type']||'minecraft:normal',opts:PROPS.find(x=>x[0]==='level-type')[3]},{id:'n',label:'Zur Bestätigung „löschen“ eintippen'}],ok:'Welt löschen',danger:true,check:x=>x.n.trim().toLowerCase()==='löschen'?'':'Bitte „löschen“ eintippen.'});
+  if(!v)return;
+  const root=lst(await api('GET',SP('/files/list'),{q:{directory:'/'}})).map(mapF),del=[lv,lv+'_nether',lv+'_the_end'].filter(n=>root.some(x=>x.name===n&&!x.file));
+  if(!await act(async()=>{if(del.length)await api('POST',SP('/files/delete'),{json:{root:'/',files:del}});const t=setProps(await mxTxt('/server.properties')||M.ptxt,{'level-seed':v.seed.trim(),'level-type':v.t});await api('POST',SP('/files/write'),{q:{file:'/server.properties'},text:t})},'Welt gelöscht – beim nächsten Start entsteht eine neue'))return;
+  S.mx.pp=null;mxLoad()}
+async function mxWorldDl(){
+  const M=S.mx,lv=M.pp['level-name']||'world',root=lst(await api('GET',SP('/files/list'),{q:{directory:'/'}})).map(mapF),fs=[lv,lv+'_nether',lv+'_the_end'].filter(n=>root.some(x=>x.name===n&&!x.file));
+  if(!fs.length)return info('Keine Welt','Es gibt noch keinen Welt-Ordner. Starte den Server einmal.');
+  if(mxRun())await mxCmd('save-all').catch(()=>{});
+  toast('Packe die Welt …');
+  const a=await act(async()=>att(await api('POST',SP('/files/compress'),{json:{root:'/',files:fs},timeout:600000})));if(!a||a===true)return;
+  await fDownload('/'+a.name,a.name,a.size);toast('Das Archiv liegt auch im Server-Ordner: '+a.name)}
+Object.assign(H,{
+  'mx-re':()=>{S.mx=null;drawMcx()},
+  'mx-sec':b=>{S.mx.sec=b.dataset.v;S.mx.saved=0;drawMcx();if(b.dataset.v==='ply'&&mxRun()&&!S.mx.onl)mxOnline()},
+  'mx-onl':()=>{S.mx.onl=null;mxOnline()},
+  'mx-add':async()=>{const v=await ask({title:'Spieler eintragen',fields:[{id:'n',label:'Minecraft-Name',ph:'z. B. Steve'},{id:'k',type:'select',label:'Als',value:'wl',opts:[['wl','Whitelist (darf beitreten)'],['op','Operator (Admin im Spiel)'],['ban','Bannen (darf nicht mehr beitreten)']]}],ok:'Eintragen',check:x=>pName(x.n.trim())?'':'Ungültiger Name (3–16 Zeichen: Buchstaben, Zahlen, _).'});if(v)mxAct(v.k,v.n.trim(),true)},
+  'mx-rm':b=>mxAct(b.dataset.k,b.dataset.n,false),
+  'mx-pm':async b=>{const n=b.dataset.n,M=S.mx,isOp=M.ops.some(x=>x.name===n),isWl=M.wl.some(x=>x.name===n);const a=await menu(n,[{id:'op',label:isOp?'Operator-Rechte entziehen':'Zum Operator machen',icon:'shield'},{id:'wl',label:isWl?'Von der Whitelist nehmen':'Auf die Whitelist',icon:'check'},{id:'kick',label:'Rauswerfen (kick)',icon:'x'},{id:'ban',label:'Bannen',icon:'trash',warn:1}]);
+    if(a==='op')mxAct('op',n,!isOp);else if(a==='wl')mxAct('wl',n,!isWl);else if(a==='kick')mxAct('kick',n,true);else if(a==='ban'&&await yes('„'+n+'“ bannen?','Der Spieler wird rausgeworfen und kann nicht mehr beitreten.','Bannen',true))mxAct('ban',n,true)},
+  'mx-wlt':async()=>{const M=S.mx,on=M.pp['white-list']!=='true';if(mxRun()){if(await act(()=>mxCmd('whitelist '+(on?'on':'off')),'Whitelist '+(on?'an':'aus'))){await sleep(800);await mxLoad(true)}}else{const t=setProps(await mxTxt('/server.properties')||M.ptxt,{'white-list':String(on)});if(await act(()=>api('POST',SP('/files/write'),{q:{file:'/server.properties'},text:t}),'Whitelist '+(on?'an':'aus'))){M.ptxt=t;M.pp=parseProps(t);drawMcx()}}},
+  'mx-save':()=>mxSave(),
+  'mx-rs':async()=>{S.mx.saved=0;await act(()=>api('POST',SP('/power'),{json:{signal:'restart'}}),'Neustart wird ausgeführt');drawMcx()},
+  'mx-ver':()=>mxVer(),
+  'mx-eula':async()=>{if(!await yes('Minecraft-EULA','Mit dem Betrieb eines Minecraft-Servers akzeptierst du die Endbenutzer-Lizenz von Mojang: <a href="https://aka.ms/MinecraftEULA" target="_blank" rel="noopener">aka.ms/MinecraftEULA</a>.','Ich akzeptiere'))return;
+    const ev=(S.mx.vars||[]).find(v=>v.env_variable==='EULA');if(await act(async()=>{await api('POST',SP('/files/write'),{q:{file:'/eula.txt'},text:'eula=true\n'});if(ev)await api('PUT',SP('/startup/variable'),{json:{key:'EULA',value:'true'}})},'EULA akzeptiert')){S.mx.eula=true;drawMcx()}},
+  'mx-seed':async()=>{try{const x=await conRead(cur(),S.srv.id,{cmd:'seed',ms:2000}),m=/Seed: \[?(-?\d+)\]?/.exec(x.lines.join('\n'));if(m){S.mx.seed=m[1];drawMcx()}else toast('Kein Seed in der Antwort')}catch(e){info('Nicht möglich',esc(fe(e)))}},
+  'mx-wdl':()=>mxWorldDl(),
+  'mx-wrs':()=>mxWorldReset()
+});
 /* ----- Brücke für andere Teile der App (z. B. AI Agents) ----- */
 const profById=pid=>{const d=Object.assign({p:[],px:null},store.get(K,{}));if(d.px)DB.px=d.px;const p=d.p.find(x=>x.id===pid);if(!p)throw new ApiErr('Diese Server-Verbindung gibt es nicht mehr.');return p};
 async function srvAll(p){const all=[];for(let page=1;page<=10;page++){const r=await api('GET','/',{p,q:{page,per_page:100}});all.push(...lst(r));const pg=r.meta&&r.meta.pagination;if(!pg||page>=pg.total_pages)break}return all.map(mapSrv)}
@@ -3134,7 +3360,9 @@ window.tbSrv={
   mcInfo:(pid,id)=>mcInfo(profById(pid),id),
   mrSearch,
   mrInstall:(pid,id,project,info)=>mrInstall(profById(pid),id,project,info),
-  mcList:(pid,id,info)=>mcList(profById(pid),id,info)
+  mcList:(pid,id,info)=>mcList(profById(pid),id,info),
+  handy:(pid,path,q,o)=>api((o&&o.method)||'GET','',{p:profById(pid),base:'/api/handy/'+path,q:q||undefined,json:o&&o.json,timeout:(o&&o.timeout)||20000}),
+  props:{parse:parseProps,set:setProps}
 };
 
 /* ----- Admin-Bereich (Application API, Schlüssel ptla_) ----- */
@@ -3243,10 +3471,14 @@ async function adNew(){
   }catch(e){A.nw=null;drawAdmin();info('Das hat nicht geklappt',esc(fe(e)))}}
 async function adEgg(){const N=S.ad&&S.ad.nw;if(!N||!N.f.egg)return;const[nest,id]=N.f.egg.split('/');N.eg=null;drawNew();
   try{const e=att(await aapi('GET','/nests/'+nest+'/eggs/'+id,{q:{include:'variables'}}));if(S.ad.nw!==N)return;N.eg=e;
-    const imgs=e.docker_images?Object.values(e.docker_images):[];N.f.image=imgs[0]||e.docker_image||'';N.f.startup=e.startup||'';N.f.env={};(relOf(e,'variables')||[]).forEach(v=>{N.f.env[v.env_variable]=v.default_value==null?'':String(v.default_value)})}
+    const imgs=e.docker_images?Object.values(e.docker_images):[];N.f.image=imgs[0]||e.docker_image||'';N.f.startup=e.startup||'';N.f.env={};(relOf(e,'variables')||[]).forEach(v=>{N.f.env[v.env_variable]=v.default_value==null?'':String(v.default_value)});adPickAlloc(N)}
   catch(er){N.eg={err:fe(er)}}drawNew()}
+// Passenden freien Port vorschlagen: Minecraft 25565 …, Lavalink 2333 …, sonst nicht die Minecraft-Ports
+function adPickAlloc(N){if(!Array.isArray(N.al)||!N.al.length||!N.eg||N.eg.err)return;const n=String(N.eg.name||'')+' '+String(N.eg.startup||''),mcp=a=>(a.port>=25565&&a.port<=25575)||a.port===19132;
+  const ok=/lavalink/i.test(n)?a=>a.port>=2333&&a.port<=2340:/paper|vanilla|fabric|forge|spigot|purpur|bukkit|minecraft|nogui/i.test(n)?a=>a.port>=25565&&a.port<=25575:a=>!mcp(a)&&!(a.port>=2333&&a.port<=2340);
+  const curA=N.al.find(a=>String(a.id)===String(N.f.alloc));if(curA&&ok(curA))return;const b=N.al.find(ok);if(b)N.f.alloc=b.id}
 async function adAllocs(){const N=S.ad&&S.ad.nw;if(!N||!N.f.node)return;N.al=null;drawNew();
-  try{const l=await aall('/nodes/'+N.f.node+'/allocations');if(S.ad.nw!==N)return;N.al=l.filter(a=>!a.assigned);N.f.alloc=N.al[0]?N.al[0].id:''}catch(e){N.al={err:fe(e)}}drawNew()}
+  try{const l=await aall('/nodes/'+N.f.node+'/allocations');if(S.ad.nw!==N)return;N.al=l.filter(a=>!a.assigned);N.f.alloc=N.al[0]?N.al[0].id:'';adPickAlloc(N)}catch(e){N.al={err:fe(e)}}drawNew()}
 function rdNew(){const N=S.ad&&S.ad.nw;if(!N||N.st!=='form')return;el.querySelectorAll('[data-nf]').forEach(i=>{const k=i.dataset.nf;N.f[k]=i.type==='checkbox'?i.checked:i.value});el.querySelectorAll('[data-ne]').forEach(i=>{N.f.env[i.dataset.ne]=i.value})}
 function drawNew(){
   const A=S.ad,N=A&&A.nw;if(!N||S.scr!=='admin')return;
@@ -3485,7 +3717,7 @@ function drawHp(){
     <p class="st">Den Schlüssel zeigt <code>hp schluessel</code>. Ohne Angabe gilt <code>http://127.0.0.1:8090</code> (dieses Gerät).</p>
     <button class="btn pri" data-a="hp-go">${ico('check',18)}Verbinden</button><div id="hpr" class="diag"></div></details>
   <details class="dt"><summary>Befehle (hp …)</summary><p class="st">Nach der Installation gibt es überall den Befehl <code>hp</code>:<br>• <code>hp verbinden</code> – Link, Code und QR-Code für die App<br>• <code>hp fernzugriff an</code> / <code>aus</code> – sichere https-Adresse für unterwegs<br>• <code>hp status</code> – läuft das Panel, welche Server laufen<br>• <code>hp konsole survival</code> – Live-Konsole eines Servers, Befehle eintippen (Strg+C trennt nur)<br>• <code>hp start|stop|restart|kill survival</code> · <code>hp stopp-alle</code><br>• <code>hp hintergrund</code> / <code>hp beenden</code> – Panel starten/beenden (Server laufen weiter)<br>• <code>hp autostart an|aus</code> · <code>hp update</code> · <code>hp hilfe</code><br>Erneut den Installationsbefehl ausführen = aktualisieren.</p></details>
-  <details class="dt"><summary>Gut zu wissen</summary><p class="st">• <b>Warum Termux und nicht in der App?</b> Eine Web-App darf aus Sicherheitsgründen keine Programme starten – Server brauchen aber echte Prozesse (Java, Node, Python). Deshalb läuft das Panel einmal eingerichtet in Termux bzw. auf dem PC weiter, startet von selbst und wird komplett aus der App gesteuert. Befehle tippen musst du danach nicht mehr.<br>• Android 12+ beendet manchmal Hintergrund-Prozesse („phantom process killer“). Ab Android 14: Entwickleroptionen → „Einschränkungen für untergeordnete Prozesse deaktivieren“. Das Panel hält Termux mit einem Wake-Lock wach.<br>• Minecraft braucht viel Arbeitsspeicher – auf dem Handy 1–2 GB RAM pro Server.<br>• Spieler verbinden sich im WLAN mit der IP des Geräts und dem Port des Servers. Aus dem Internet brauchen Spiele-Server eine Portfreigabe oder einen Spiele-Tunnel (z. B. playit.gg) – der Fernzugriff gilt nur für die App.<br>• Der Fernzugriff nutzt einen kostenlosen Cloudflare-Tunnel. Ohne den Schlüssel kommt niemand hinein; wer ihn errät, wird nach 10 Fehlversuchen gesperrt.</p></details>`;
+  <details class="dt"><summary>Gut zu wissen</summary><p class="st">• <b>Warum Termux und nicht in der App?</b> Eine Web-App darf aus Sicherheitsgründen keine Programme starten – Server brauchen aber echte Prozesse (Java, Node, Python). Deshalb läuft das Panel einmal eingerichtet in Termux bzw. auf dem PC weiter, startet von selbst und wird komplett aus der App gesteuert. Befehle tippen musst du danach nicht mehr.<br>• Android 12+ beendet manchmal Hintergrund-Prozesse („phantom process killer“). Ab Android 14: Entwickleroptionen → „Einschränkungen für untergeordnete Prozesse deaktivieren“. Das Panel hält Termux mit einem Wake-Lock wach.<br>• Minecraft braucht viel Arbeitsspeicher – auf dem Handy 1–2 GB RAM pro Server.<br>• Welche Adresse deine Spieler eintragen, zeigt beim Server der Reiter <b>Netzwerk</b> – dort lässt sich der Port auch automatisch im Router freigeben (UPnP) und von außen testen. Der Fernzugriff gilt nur für die App, nicht für Spieler.<br>• Der Fernzugriff nutzt einen kostenlosen Cloudflare-Tunnel. Ohne den Schlüssel kommt niemand hinein; wer ihn errät, wird nach 10 Fehlversuchen gesperrt.</p></details>`;
 }
 async function hpGo(){
   const h=S.hp,o=$('#hpr',el);h.key=($('#hpk',el).value||'').trim();let u=($('#hpu',el).value||'').trim();h.url=u;
@@ -3586,7 +3818,8 @@ function toList(){closeSrv();S.srv=null;S.fd=null;S.scr='list';draw();loadList(t
 
 Object.assign(H,{
   /* Verbindung */
-  'prof-x':()=>{if(DB.p.length){S.scr='list';draw()}else home()},
+  'prof-x':()=>{if(S.pf&&!S.pf.id&&S.pf.kind){S.pf.kind=null;drawProf();return}if(DB.p.length){S.scr='list';draw()}else home()},
+  'pf-kind':b=>{S.pf.kind=b.dataset.v;drawProf();window.scrollTo(0,0)},
   eye:()=>{const i=$('#pk',el);if(i)i.type=i.type==='password'?'text':'password'},
   eye2:()=>{const i=$('#pa',el);if(i)i.type=i.type==='password'?'text':'password'},
   'pf-save':()=>savePf(),
@@ -3652,6 +3885,10 @@ function mount(root){
   el.onclick=e=>{
     const sg=e.target.closest('#pvia button');
     if(sg){readPf();S.pf.via=sg.dataset.v;drawProf();return}
+    const mx=e.target.closest('#mxs button');
+    if(mx&&S.mx){H['mx-sec'](mx);return}
+    const lh=e.target.closest('#llh button');
+    if(lh){(S.nx||(S.nx={})).llh=lh.dataset.v;redraw('net');return}
     const so=e.target.closest('#hpos button');
     if(so&&S.hp){S.hp.os=so.dataset.v;const y=window.scrollY;drawHp();window.scrollTo(0,y);return}
     const b=e.target.closest('[data-a]');if(!b)return;
@@ -3667,6 +3904,7 @@ function mount(root){
     const t=e.target;
     if(S.hp&&S.scr==='hp'&&t.dataset&&t.dataset.hp){const u=$('#hpu',el),k=$('#hpk',el);if(u)S.hp.url=u.value;if(k)S.hp.key=k.value;S.hp[t.dataset.hp]=t.checked;const y=window.scrollY;drawHp();window.scrollTo(0,y);return}
     if(S.ad&&S.ad.nw&&t.dataset&&t.dataset.nf){S.ad.nw.f[t.dataset.nf]=t.type==='checkbox'?t.checked:t.value;if(t.id==='negg')adEgg();else if(t.id==='nnode')adAllocs();return}
+    if(t.id==='lls'){(S.nx||(S.nx={})).lls=t.value;redraw('net');return}
     if(t.id==='ps'){
       if(t.value==='+')return newProf();
       DB.cur=t.value;save();S.list=null;S.listErr=null;S.res={};drawList();loadList();
@@ -3989,10 +4227,10 @@ async function gen(a,msgs,o){
 
 /* ----- Agent: Systemanweisung, Werkzeuge, Gedächtnis ----- */
 const memFor=a=>D.mem.filter(m=>D.sh||m.a===a.id||m.a==='*');
-const SRV_T='server_list|server_status|server_console|server_command|server_power|server_files|server_read|server_write|server_delete_file|plugin_search|plugin_install|server_create|server_delete';
+const SRV_T='server_list|server_status|server_console|server_command|server_power|server_files|server_read|server_write|server_delete_file|plugin_search|plugin_install|server_create|server_delete|mc_settings|mc_players|server_variable|server_reinstall|server_network|server_portforward|server_wait|server_limits';
 const TN='list_files|read_file|write_file|append_file|delete_file|remember|forget|web_search|open_url|'+SRV_T;
-const TI={server_list:'server',server_status:'server',server_console:'terminal',server_command:'terminal',server_power:'play',server_files:'folder',server_read:'file',server_write:'edit',server_delete_file:'trash',plugin_search:'puzzle',plugin_install:'puzzle',server_create:'plus',server_delete:'trash',list_files:'folder',read_file:'file',write_file:'edit',append_file:'edit',delete_file:'trash',remember:'brain',forget:'brain',web_search:'globe',open_url:'globe'};
-const TLB={server_list:'Schaut nach den Servern',server_status:'Prüft einen Server',server_console:'Liest die Konsole',server_command:'Sendet einen Befehl',server_power:'Steuert einen Server',server_files:'Schaut in die Server-Dateien',server_read:'Liest eine Server-Datei',server_write:'Schreibt eine Server-Datei',server_delete_file:'Löscht eine Server-Datei',plugin_search:'Sucht Plugins',plugin_install:'Installiert ein Plugin',server_create:'Erstellt einen Server',server_delete:'Löscht einen Server',list_files:'Schaut in den Arbeitsbereich',read_file:'Liest eine Datei',write_file:'Schreibt eine Datei',append_file:'Ergänzt eine Datei',delete_file:'Löscht eine Datei',remember:'Merkt sich etwas',forget:'Vergisst etwas',web_search:'Sucht im Internet',open_url:'Liest eine Webseite'};
+const TI={server_list:'server',server_status:'server',server_console:'terminal',server_command:'terminal',server_power:'play',server_files:'folder',server_read:'file',server_write:'edit',server_delete_file:'trash',plugin_search:'puzzle',plugin_install:'puzzle',server_create:'plus',server_delete:'trash',mc_settings:'sliders',mc_players:'users',server_variable:'sliders',server_reinstall:'refresh',server_network:'globe',server_portforward:'globe',server_wait:'clock',server_limits:'server',list_files:'folder',read_file:'file',write_file:'edit',append_file:'edit',delete_file:'trash',remember:'brain',forget:'brain',web_search:'globe',open_url:'globe'};
+const TLB={server_list:'Schaut nach den Servern',server_status:'Prüft einen Server',server_console:'Liest die Konsole',server_command:'Sendet einen Befehl',server_power:'Steuert einen Server',server_files:'Schaut in die Server-Dateien',server_read:'Liest eine Server-Datei',server_write:'Schreibt eine Server-Datei',server_delete_file:'Löscht eine Server-Datei',plugin_search:'Sucht Plugins',plugin_install:'Installiert ein Plugin',server_create:'Erstellt einen Server',server_delete:'Löscht einen Server',mc_settings:'Bearbeitet Minecraft-Einstellungen',mc_players:'Schaut nach den Spielern',server_variable:'Ändert eine Server-Variable',server_reinstall:'Installiert neu',server_network:'Prüft Adressen und Ports',server_portforward:'Gibt einen Port im Router frei',server_wait:'Wartet auf den Server',server_limits:'Ändert RAM/Speicher',list_files:'Schaut in den Arbeitsbereich',read_file:'Liest eine Datei',write_file:'Schreibt eine Datei',append_file:'Ergänzt eine Datei',delete_file:'Löscht eine Datei',remember:'Merkt sich etwas',forget:'Vergisst etwas',web_search:'Sucht im Internet',open_url:'Liest eine Webseite'};
 function sysPrompt(a,files){
   const now=new Date().toLocaleString('de-DE',{weekday:'long',day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
   const mem=memFor(a).slice(-60),tl=a.tools!==false;
@@ -4086,7 +4324,7 @@ async function runTool(a,c,sig){
 }
 
 /* ----- Serverzugriff (nur mit Erlaubnis; nutzt die Verbindungen aus dem Werkzeug „Server“) ----- */
-const SRV_FULL=new Set(['server_command','server_power','server_write','server_delete_file','plugin_install','server_create','server_delete']);
+const SRV_FULL=new Set(['server_command','server_power','server_write','server_delete_file','plugin_install','server_create','server_delete','server_reinstall','server_portforward','server_limits']);
 const SRV_RE=new RegExp('^('+SRV_T+')$');
 let SRVC={t:0,l:null,k:''};
 const srvOn=a=>!!(a&&a.srv&&a.srv!=='off'&&a.tools!==false&&window.tbSrv);
@@ -4096,13 +4334,13 @@ async function srvIdx(a,force){
   const ps=tbSrv.profiles().filter(p=>!k||p.id===k);if(!ps.length)throw Error('Es gibt noch keine Server-Verbindung. Der Nutzer richtet sie im Werkzeug „Server“ ein.');
   const l=[];
   for(const p of ps){try{(await tbSrv.servers(p.id)).forEach(s=>{const al=s.allocs&&(s.allocs.find(x=>x.is_default)||s.allocs[0]);
-      l.push({pid:p.id,pn:p.name,admin:p.admin,id:s.id,name:s.name,state:s.suspended?'gesperrt':s.status?s.status:((s.res&&s.res.current_state)||'unbekannt'),mc:/java|\.jar\b/i.test(s.inv||s.image||''),port:al?(al.ip_alias||al.ip)+':'+al.port:'',lim:s.limits||{}})})}
+      const ll=/lavalink/i.test(s.inv||'');l.push({pid:p.id,pn:p.name,admin:p.admin,hp:p.hp,id:s.id,name:s.name,state:s.suspended?'gesperrt':s.status?s.status:((s.res&&s.res.current_state)||'unbekannt'),ll,mc:!ll&&/java|\.jar\b/i.test(s.inv||s.image||''),port:al?(p.hp?'Port '+al.port:(al.ip_alias||al.ip)+':'+al.port):'',lim:s.limits||{}})})}
     catch(e){l.push({pid:p.id,pn:p.name,admin:p.admin,err:fe(e)})}}
   SRVC={t:Date.now(),l,k};return l}
 function srvPick(l,q){q=String(q||'').trim().toLowerCase().replace(/^[\["„]+|[\]"“]+$/g,'');const ok=l.filter(x=>!x.err);
   if(!q)return ok.length===1?ok[0]:null;
   return ok.find(x=>x.id.toLowerCase()===q)||ok.find(x=>x.name.toLowerCase()===q)||ok.find(x=>x.name.toLowerCase().includes(q))||ok.find(x=>q.includes(x.name.toLowerCase()))||null}
-const srvLine=x=>x.err?`- Verbindung „${x.pn}“: nicht erreichbar (${x.err})`:`- „${x.name}“ [${x.id}] ${STN2[x.state]||x.state}${x.mc?' · Minecraft':''}${x.port?' · '+x.port:''}`;
+const srvLine=x=>x.err?`- Verbindung „${x.pn}“: nicht erreichbar (${x.err})`:`- „${x.name}“ [${x.id}] ${STN2[x.state]||x.state}${x.mc?' · Minecraft':x.ll?' · Lavalink':''}${x.port?' · '+x.port:''}`;
 const srvConfirm=async(a,title,text)=>a.srvAsk===false||!!(await ask({title,desc:text,ok:'Erlauben',no:'Ablehnen'}));
 async function srvCreate(a,at,r){
   const ps=tbSrv.profiles().filter(p=>(!a.srvP||p.id===a.srvP)&&p.admin);if(!ps.length)return r(0,'Zum Erstellen braucht eine Verbindung einen Admin-Schlüssel (oder das Handy-Panel).','Kein Admin-Zugriff');
@@ -4114,10 +4352,10 @@ async function srvCreate(a,at,r){
   const nm=e=>e.name.toLowerCase(),eg=eggs.find(e=>nm(e)===type)||eggs.find(e=>nm(e).includes(type))||eggs.find(e=>type.includes(nm(e)));
   if(!eg)return r(0,'Keine Vorlage „'+type+'“. Vorhanden: '+eggs.map(e=>e.name).join(', '),'Vorlage nicht gefunden');
   const ed=(await A('GET','/nests/'+eg.nest+'/eggs/'+eg.id,{q:{include:'variables'}})).attributes,vars=L(ed.relationships&&ed.relationships.variables);
-  const env={};vars.forEach(v=>{env[v.env_variable]=v.default_value==null?'':String(v.default_value);const o=at[v.env_variable.toLowerCase()];if(o!=null)env[v.env_variable]=String(o)});
+  const env={};vars.forEach(v=>{env[v.env_variable]=v.default_value==null?'':String(v.default_value);const o=at[v.env_variable.toLowerCase()];if(o!=null)env[v.env_variable]=String(o);if(at.version&&/^(MINECRAFT_VERSION|MC_VERSION|VERSION|LAVALINK_VERSION)$/.test(v.env_variable))env[v.env_variable]=String(at.version).trim()});
   const eulaV=vars.find(v=>v.env_variable==='EULA'),mc=!!eulaV||/minecraft/i.test(eg.nn)||/paper|spigot|purpur|vanilla|fabric|forge|bukkit/i.test(eg.name);
   const users=L(await A('GET','/users',{q:{per_page:100}})),user=users.find(u=>u.root_admin)||users[0];if(!user)return r(0,'Im Panel gibt es keinen Benutzer.','Kein Benutzer');
-  let alloc=null;for(const n of L(await A('GET','/nodes',{q:{per_page:100}}))){const al=L(await A('GET','/nodes/'+n.id+'/allocations',{q:{per_page:500}})).find(x=>!x.assigned);if(al){alloc=al;break}}
+  const wp=parseInt(at.port,10)||0;let alloc=null;for(const n of L(await A('GET','/nodes',{q:{per_page:100}}))){const all=L(await A('GET','/nodes/'+n.id+'/allocations',{q:{per_page:500}})).filter(x=>!x.assigned),mcp=x=>(x.port>=25565&&x.port<=25575)||x.port===19132,al=all.find(x=>x.port===wp)||(/lavalink/i.test(eg.name)&&all.find(x=>x.port>=2333&&x.port<=2340))||(mc?all.find(mcp):all.find(x=>!mcp(x)))||all[0];if(al){alloc=al;break}}
   if(!alloc)return r(0,'Es ist kein Port mehr frei. Der Nutzer muss im Admin-Bereich (Nodes) Ports hinzufügen.','Kein freier Port');
   const mem=Math.max(128,Math.min(65536,parseInt(at.memory||at.ram,10)||2048));
   let ok=true,eula=false;
@@ -4128,7 +4366,7 @@ async function srvCreate(a,at,r){
   const imgs=ed.docker_images?Object.values(ed.docker_images):[];
   const s=(await A('POST','/servers',{json:{name,description:'Erstellt von '+a.name,user:user.id,egg:eg.id,docker_image:imgs[0]||ed.docker_image,startup:ed.startup,environment:env,limits:{memory:mem,swap:0,disk:Math.max(1024,parseInt(at.disk,10)||10240),io:500,cpu:0},feature_limits:{databases:0,backups:1,allocations:1},allocation:{default:alloc.id},start_on_completion:true},timeout:60000})).attributes;
   if(mc&&eula&&!eulaV)(async()=>{for(let i=0;i<72;i++){await new Promise(z=>setTimeout(z,5000));try{const x=(await tbSrv.api(p.id,'GET','/servers/'+s.identifier)).attributes;if(!x.status){await tbSrv.api(p.id,'POST','/servers/'+s.identifier+'/files/write',{q:{file:'/eula.txt'},text:'eula=true\n'});return}}catch(e){}}})();
-  SRVC.t=0;return r(1,`✓ Server „${s.name}“ [${s.identifier}] erstellt (${eg.name}, Port ${alloc.port}, ${mem} MB RAM). Die Installation läuft und kann einige Minuten dauern, danach startet er automatisch.${mc&&!eula?' Achtung: Ohne akzeptierte EULA startet Minecraft nicht.':''}`,'Server erstellt: '+s.name)}
+  SRVC.t=0;return r(1,`✓ Server „${s.name}“ [${s.identifier}] erstellt (${eg.name}${env.MINECRAFT_VERSION?' '+env.MINECRAFT_VERSION:''}, Port ${alloc.port}, ${mem} MB RAM). Die Installation läuft (einige Minuten), danach startet er automatisch. Warte dann mit server_wait (server="${s.identifier}", until="running"), bevor du Plugins installierst oder Einstellungen änderst.${mc&&!eula?' Achtung: Ohne akzeptierte EULA startet Minecraft nicht.':''}${/lavalink/i.test(eg.name)?' Host, Port und Passwort für den Bot liefert danach server_network.':''}`,'Server erstellt: '+s.name)}
 async function runSrv(a,c,sig){
   const at=c.at||{},b=String(c.b||''),r=(ok,out,l,x)=>Object.assign({ok:!!ok,out,l},x||{});
   if(!window.tbSrv)return r(0,'Das Server-Werkzeug ist nicht verfügbar.','Kein Serverzugriff');
@@ -4168,6 +4406,57 @@ async function runSrv(a,c,sig){
       if(!await srvConfirm(a,'KI möchte ein Plugin installieren',who+'<b>'+esc(pl)+'</b> (von Modrinth) auf „'+esc(s.name)+'“ installieren.'))return r(0,'Der Nutzer hat das abgelehnt.','Abgelehnt: '+pl);
       const res=await tbSrv.mrInstall(s.pid,s.id,pl,info),okL=res.filter(x=>!x.error),er=res.filter(x=>x.error);
       return r(okL.length,'Installiert in '+info.dir+': '+(okL.map(x=>x.file+' ('+x.version+')').join(', ')||'nichts')+(er.length?'\nFehler: '+er.map(x=>x.project+': '+x.error).join('; '):'')+'\nDamit es geladen wird, muss der Server neu starten (server_power action="restart").','Plugin installiert: '+pl)}
+    case 'mc_settings':{if(!s.mc)return r(0,'„'+s.name+'“ ist kein Minecraft-Server.','Kein Minecraft-Server');
+      let t='';try{t=String(await A('GET','/files/contents',{q:{file:'/server.properties'},as:'text'})||'')}catch(e){if(!(e&&e.status===404))throw e}
+      const ch={};for(const[k,v]of Object.entries(at))if(!/^(name|name2|server|id)$/.test(k)&&/^[a-z0-9.\-]+$/.test(k))ch[k]=String(v).trim();
+      b.split(/\n/).forEach(l=>{const m=/^\s*([a-z0-9.\-]+)\s*=\s*(.*)$/.exec(l);if(m)ch[m[1]]=m[2].trim()});
+      const P=tbSrv.props.parse(t);
+      if(!Object.keys(ch).length)return r(1,t?`server.properties von „${s.name}“:\n`+Object.entries(P).map(([k,v])=>k+'='+v).join('\n'):'Noch keine server.properties – der Server muss einmal gestartet werden.','Einstellungen gelesen: '+s.name);
+      if(a.srv!=='full')return r(0,'Du darfst Server nur ansehen. Der Nutzer kann dir über das Server-Symbol vollen Zugriff geben.','Nur Lesezugriff');
+      if(ch['online-mode']==='false'&&!await srvConfirm(a,'KI möchte echte Konten abschalten',who+'auf „'+esc(s.name)+'“ <b>online-mode=false</b> setzen. Dann kann jeder unter jedem Namen beitreten.'))return r(0,'Der Nutzer hat das abgelehnt.','Abgelehnt: online-mode');
+      await A('POST','/files/write',{q:{file:'/server.properties'},text:tbSrv.props.set(t,ch)});
+      return r(1,'✓ Gesetzt auf „'+s.name+'“: '+Object.entries(ch).map(([k,v])=>k+'='+v).join(', ')+'. Wirkt nach einem Neustart (server_power action="restart"). Whitelist an/aus geht bei laufendem Server sofort mit server_command „whitelist on“.','Einstellungen: '+Object.keys(ch).join(', ').slice(0,60))}
+    case 'mc_players':{if(!s.mc)return r(0,'„'+s.name+'“ ist kein Minecraft-Server.','Kein Minecraft-Server');
+      const rd=async f=>{try{const x=JSON.parse(String(await A('GET','/files/contents',{q:{file:f},as:'text'})||'[]'));return Array.isArray(x)?x:[]}catch(e){return[]}};
+      const[wl,ops,ban]=await Promise.all([rd('/whitelist.json'),rd('/ops.json'),rd('/banned-players.json')]);let on='(Server aus)';
+      if(s.state==='running'||s.state==='starting'){try{const x=await tbSrv.console(s.pid,s.id,{cmd:'list',ms:2500}),m=/There are (\d+) (?:of a max(?: of)?|out of maximum) (\d+) players online[.:]?\s*([^\n]*)/i.exec(x.lines.join('\n'));on=m?m[1]+'/'+m[2]+(m[3]?': '+m[3]:''):'unbekannt'}catch(e){on='unbekannt'}}
+      const nm=l=>l.map(x=>x.name).join(', ')||'–';
+      return r(1,`Spieler auf „${s.name}“:\nOnline: ${on}\nWhitelist: ${nm(wl)}\nOperatoren: ${nm(ops)}\nGebannt: ${nm(ban)}\nÄndern (Server muss laufen) mit server_command: whitelist on|off, whitelist add NAME, whitelist remove NAME, op NAME, deop NAME, kick NAME, ban NAME, pardon NAME.`,'Spieler: '+s.name)}
+    case 'server_variable':{const vars=((await A('GET','/startup')).data||[]).map(x=>x.attributes),key=String(at.key||at.variable||at.env||'').trim().toUpperCase(),val=String(at.value!=null?at.value:b).trim();
+      if(!key)return r(1,`Variablen von „${s.name}“:\n`+vars.map(v=>`- ${v.env_variable} = ${v.server_value!=null&&v.server_value!==''?v.server_value:v.default_value} (${v.name}${v.is_editable?'':', gesperrt'})`).join('\n'),'Variablen: '+s.name);
+      if(a.srv!=='full')return r(0,'Du darfst Server nur ansehen.','Nur Lesezugriff');
+      const v=vars.find(x=>x.env_variable===key);if(!v)return r(0,'Die Variable '+key+' gibt es nicht. Vorhanden: '+vars.map(x=>x.env_variable).join(', '),'Unbekannte Variable');
+      if(key==='EULA'&&/^true$/i.test(val)&&!(await ask({title:'Minecraft-EULA akzeptieren?',desc:'Der Agent <b>'+esc(a.name)+'</b> möchte für „'+esc(s.name)+'“ die Minecraft-EULA akzeptieren. Das darfst nur du: <a href="https://aka.ms/MinecraftEULA" target="_blank" rel="noopener">aka.ms/MinecraftEULA</a>',ok:'Ich akzeptiere',no:'Ablehnen'})))return r(0,'Der Nutzer hat die EULA nicht akzeptiert.','EULA abgelehnt');
+      await A('PUT','/startup/variable',{json:{key,value:val}});SRVC.t=0;
+      return r(1,'✓ '+key+' = '+val+' auf „'+s.name+'“.'+(/VERSION/.test(key)?' Damit die neue Version geladen wird: server_reinstall.':' Gilt beim nächsten Start.'),'Variable: '+key)}
+    case 'server_reinstall':{if(!await srvConfirm(a,'KI möchte „'+s.name+'“ neu installieren',who+'den Server neu installieren (die Server-Datei wird neu geladen, z. B. für eine andere Version). Er wird dabei gestoppt. Welt und Dateien bleiben in der Regel erhalten.'))return r(0,'Der Nutzer hat das abgelehnt.','Abgelehnt: neu installieren');
+      await A('POST','/settings/reinstall');SRVC.t=0;return r(1,'✓ Neuinstallation von „'+s.name+'“ läuft. Warte mit server_wait until="installed".','Neuinstallation: '+s.name)}
+    case 'server_wait':{const want=/run|läuft|start/i.test(at.until||b||'')?'running':'installed',t0=Date.now();let st='',inst=true;
+      while(Date.now()-t0<150000){try{const d=(await A('GET','')).attributes||{};inst=!!d.status;if(!inst){const x=(await A('GET','/resources')).attributes||{};st=x.current_state}}catch(e){}
+        if(want==='installed'&&!inst)break;if(want==='running'&&!inst&&st==='running')break;await new Promise(z=>setTimeout(z,3000))}
+      SRVC.t=0;const ok2=want==='installed'?!inst:st==='running';
+      return r(ok2,ok2?`✓ „${s.name}“ ist ${want==='running'?'gestartet':'fertig installiert'} (nach ${Math.round((Date.now()-t0)/1000)} s).`:`„${s.name}“ ist nach 150 s noch nicht so weit (${inst?'installiert noch':'Status: '+(STN2[st]||st)}). Später erneut prüfen (server_status/server_console).`,'Gewartet: '+s.name)}
+    case 'server_network':{const al=((await A('GET','/network/allocations')).data||[]).map(x=>x.attributes),def=al.find(x=>x.is_default)||al[0],port=def?def.port:0;
+      let o=`Netzwerk von „${s.name}“: Hauptport ${port||'?'}${al.length>1?' · weitere Ports: '+al.filter(x=>x!==def).map(x=>x.port).join(', '):''}`;
+      if(!s.hp){o+='\nAdresse: '+(def?(def.ip_alias||def.ip)+':'+port:'?');return r(1,o,'Netzwerk: '+s.name)}
+      const[n,pr]=await Promise.all([tbSrv.handy(s.pid,'network').catch(()=>null),tbSrv.handy(s.pid,'probe',{server:s.id}).catch(()=>null)]);
+      if(n){const lan=(n.lan.find(x=>!x.virt)||n.lan[0]||{}).ip,fw=(n.maps||[]).filter(m=>m.port===port);
+        o+=`\nIm WLAN: ${lan?lan+':'+port:'?'}\nÜber das Internet: ${n.public.v4?n.public.v4+':'+port:'?'} (${fw.length?'im Router freigegeben':'nicht freigegeben – server_portforward'})\nAuf demselben Gerät: 127.0.0.1:${port}\nRouter (UPnP): ${n.upnp.state==='ok'?'verfügbar ('+(n.upnp.router||'')+')':'nicht verfügbar'}${n.cgnat?'\nAchtung: keine eigene öffentliche IPv4 (CGNAT) – Portfreigaben wirken nicht, nur ein Tunnel wie playit.gg hilft.':''}`}
+      if(pr){if(pr.type==='minecraft')o+=`\nMinecraft: ${pr.online?'online, '+(pr.version||'')+', '+((pr.players||{}).online||0)+'/'+((pr.players||{}).max||0)+' Spieler':'nicht erreichbar ('+(pr.state||pr.err||'')+')'}`;
+        if(pr.type==='lavalink')o+=`\nLavalink: ${pr.online?'bereit'+(pr.version?', Version '+pr.version:''):'nicht bereit ('+(pr.state||pr.err||'')+')'}\nZugang für Bots: Host 127.0.0.1 (gleiches Gerät) bzw. die WLAN-IP, Port ${port}, Passwort ${a.srv==='full'?pr.password:'(nur mit vollem Zugriff sichtbar)'}, secure=false`}
+      return r(1,o,'Netzwerk: '+s.name)}
+    case 'server_portforward':{if(!s.hp)return r(0,'Portfreigaben im Router gehen nur beim Handy-Panel.','Nicht möglich');
+      const on=!/^(off|aus|false|0|nein)$/i.test(String(at.action||at.on||b||'on').trim()),al=((await A('GET','/network/allocations')).data||[]).map(x=>x.attributes),def=al.find(x=>x.is_default)||al[0],port=parseInt(at.port,10)||(def&&def.port);
+      if(!port||!al.some(x=>x.port===port))return r(0,'Port '+port+' gehört nicht zu „'+s.name+'“.','Falscher Port');
+      if(on&&!await srvConfirm(a,'KI möchte einen Port im Router freigeben',who+'Port <b>'+port+'</b> von „'+esc(s.name)+'“ per UPnP im Router öffnen. Dann ist der Server aus dem Internet erreichbar.'))return r(0,'Der Nutzer hat das abgelehnt.','Abgelehnt: Portfreigabe');
+      const x=await tbSrv.handy(s.pid,'upnp',null,{method:'POST',json:{port,proto:String(at.proto||(s.mc?'BOTH':'TCP')).toUpperCase(),on,name:s.name},timeout:30000});
+      return r(1,on?'✓ Port '+port+' ist im Router freigegeben. Von außen: '+(x.external||'öffentliche IP')+':'+port:'✓ Freigabe für Port '+port+' entfernt.','Portfreigabe '+(on?'an':'aus')+': '+port)}
+    case 'server_limits':{if(!s.admin)return r(0,'Dafür braucht die Verbindung einen Admin-Schlüssel.','Kein Admin-Zugriff');
+      const app=(((await tbSrv.aapi(s.pid,'GET','/servers',{q:{per_page:100}})).data)||[]).map(x=>x.attributes).find(x=>x.identifier===s.id);if(!app)throw Error('Server im Admin-Bereich nicht gefunden.');
+      const L0=app.limits||{},mem=parseInt(at.memory||at.ram,10)||L0.memory,disk=parseInt(at.disk,10)||L0.disk,cpu=at.cpu!=null?parseInt(at.cpu,10)||0:L0.cpu;
+      if(!await srvConfirm(a,'KI möchte die Ressourcen ändern',who+'„'+esc(s.name)+'“ auf <b>'+mem+' MB RAM</b>'+(disk?', '+disk+' MB Speicher':'')+(cpu?', '+cpu+' % CPU':'')+' setzen.'))return r(0,'Der Nutzer hat das abgelehnt.','Abgelehnt: Ressourcen');
+      await tbSrv.aapi(s.pid,'PATCH','/servers/'+app.id+'/build',{json:{allocation:app.allocation,memory:mem,swap:L0.swap||0,disk:disk||0,io:L0.io||500,cpu:cpu||0,threads:L0.threads||null,feature_limits:app.feature_limits||{databases:0,allocations:5,backups:0}}});
+      SRVC.t=0;return r(1,'✓ „'+s.name+'“: '+mem+' MB RAM'+(disk?', '+disk+' MB Speicher':'')+'. Gilt nach einem Neustart.','Ressourcen: '+s.name)}
     case 'server_delete':{if(!s.admin)return r(0,'Für diese Verbindung gibt es keinen Admin-Schlüssel.','Kein Admin-Zugriff');
       const v=await ask({title:'KI möchte einen Server löschen',desc:who+'<b>„'+esc(s.name)+'“</b> mit allen Dateien endgültig löschen.',fields:[{id:'n',label:'Zur Bestätigung den Namen eintippen'}],ok:'Endgültig löschen',no:'Ablehnen',danger:true,check:v=>v.n.trim()===s.name.trim()?'':'Der Name stimmt nicht.'});
       if(!v)return r(0,'Der Nutzer hat das abgelehnt.','Abgelehnt: Server löschen');
@@ -4183,14 +4472,25 @@ function srvPrompt(a){
 <tool name="server_console" server="ID"/> – letzte Konsolen-Ausgaben
 <tool name="server_files" server="ID" path="/"/> – Dateien auflisten
 <tool name="server_read" server="ID" path="DATEI"/> – Datei lesen
-<tool name="plugin_search" server="ID">SUCHBEGRIFF</tool> – Minecraft-Plugins/Mods suchen (Modrinth)`+(full?`
+<tool name="plugin_search" server="ID">SUCHBEGRIFF</tool> – Minecraft-Plugins/Mods suchen (Modrinth)
+<tool name="mc_settings" server="ID"/> – Minecraft-Einstellungen (server.properties) lesen
+<tool name="mc_players" server="ID"/> – Spieler: online, Whitelist, Operatoren, Gebannte
+<tool name="server_variable" server="ID"/> – Start-Variablen lesen (z. B. Version, Passwort)
+<tool name="server_network" server="ID"/> – Adressen für Spieler/Bots (WLAN, Internet), Ports, Lavalink-Zugang
+<tool name="server_wait" server="ID" until="running"/> – warten, bis der Server installiert (until="installed") bzw. gestartet ist`+(full?`
 <tool name="server_command" server="ID">BEFEHL</tool> – Konsolenbefehl ausführen (ohne /), die Ausgabe kommt zurück
 <tool name="server_power" server="ID" action="restart"/> – action: start, stop, restart oder kill
 <tool name="server_write" server="ID" path="DATEI">INHALT</tool> – Datei schreiben (z. B. Plugin-Konfiguration)
 <tool name="server_delete_file" server="ID" path="DATEI"/> – Datei löschen
 <tool name="plugin_install" server="ID" plugin="SLUG"/> – Plugin/Mod installieren (slug aus plugin_search), danach neu starten
-<tool name="server_create" server="NAME" type="paper" memory="2048"/> – neuen Server erstellen (type: paper, vanilla, fabric, node.js, python …)
-<tool name="server_delete" server="ID"/> – Server endgültig löschen`:'')+`
+<tool name="server_create" server="NAME" type="paper" version="1.21.4" memory="2048"/> – neuen Server erstellen (type: paper, vanilla, fabric, lavalink, node.js, python …; version optional, sonst neueste)
+<tool name="mc_settings" server="ID" max-players="10" white-list="true" motd="Text"/> – Minecraft-Einstellungen setzen (Schlüssel wie in server.properties, z. B. difficulty, gamemode, pvp, view-distance, level-seed)
+<tool name="server_variable" server="ID" key="MINECRAFT_VERSION" value="1.21.4"/> – Start-Variable setzen (danach bei Versionen server_reinstall)
+<tool name="server_reinstall" server="ID"/> – neu installieren (z. B. andere Version)
+<tool name="server_portforward" server="ID" action="on"/> – Port im Router freigeben (on/off, Handy-Panel)
+<tool name="server_limits" server="ID" memory="2048"/> – RAM (MB) ändern
+<tool name="server_delete" server="ID"/> – Server endgültig löschen
+So richtest du einen Server komplett ein: server_create → server_wait until="running" → mc_settings (z. B. Whitelist, Spieler) → plugin_search/plugin_install → server_power action="restart" → server_network (Adresse für die Spieler nennen). Lavalink: server_create type="lavalink" → server_wait → server_network (Host, Port, Passwort für den Bot). Spieler-Befehle (whitelist add, op …) über server_command.`:'')+`
 Server: ${c?'\n'+c.map(srvLine).join('\n'):'(noch unbekannt – zuerst server_list aufrufen)'}`}
 
 /* ----- Internet: Websuche und Seiten lesen ----- */
@@ -4692,7 +4992,7 @@ tool({id:'set',sys:1,icon:'sliders',title:'Einstellungen',desc:'Design, Textgrö
   <label>Standard-Verschlüsselung</label><select id="al">${Object.entries(ALGS).map(([k,v])=>`<option value="${k}"${k===SET.alg?' selected':''}>${v.n}</option>`).join('')}</select>
   <label>Daten</label><button id="rs" class="btn">${ico('trash',18)}Alle Daten zurücksetzen</button>
   <p class="st">Löscht Notizen, eigene Stile, Server-Verbindungen (samt API-Schlüsseln), die Daten der AI Agents (Chats, Arbeitsbereiche, Wissen), Chat-Kontakte samt Verlauf und Einstellungen von diesem Gerät. Erstelle vorher ein Backup. Heruntergeladene KI-Modelle bleiben erhalten – die löschst du unter AI Agents → Modelle.</p>
-  <p class="foot">Toolbox · Version 1.8</p>`;
+  <p class="foot">Toolbox · Version 1.9</p>`;
   el.onclick=e=>{const b=e.target.closest('button');if(!b)return;const g=b.closest('.seg');
     if(g){const k=g.dataset.k;SET[k]=k==='z'?+b.dataset.v:b.dataset.v;g.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));saveSet();if(k==='nt'&&SET.nt==='on')askNt(g)}
     else if(b.dataset.ac!=null){SET.ac=+b.dataset.ac;el.querySelectorAll('.sw').forEach(x=>x.classList.toggle('on',x===b));saveSet()}
