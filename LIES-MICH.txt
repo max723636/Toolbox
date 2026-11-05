@@ -1,6 +1,25 @@
 TOOLBOX – so wird daraus eine App
 
-NEU in Version 1.9:
+NEU in Version 1.10:
+- Viele neue Vorlagen im Handy-Panel (1.4):
+  Minecraft: Purpur, Forge, NeoForge (Modpacks) und Velocity (Proxy für Server-Netzwerke) – zusätzlich zu
+  Paper, Vanilla und Fabric. Forge/NeoForge wählen automatisch die passende Version zu deinem Java.
+  Programme: Java-Programm (.jar, optional mit Download-Adresse), Webseite (Ordner „public“).
+  Node.js und Python können dein Projekt jetzt direkt aus Git (GitHub/GitLab) laden und vor jedem Start
+  automatisch aktualisieren. Python-Pakete kommen in eine eigene Umgebung (.venv).
+  Discord: fertige Bot-Vorlagen (JavaScript/discord.js und Python/discord.py) mit /ping – nur noch den
+  Bot-Token unter Startup eintragen. Dazu Lavalink.
+  Voice: TeamSpeak 3 (nur PC/Linux mit Intel/AMD).
+- Der Reiter „Netzwerk“ ist beim Handy-Panel jetzt immer da. Ist das Panel zu alt, steht dort (und oben
+  in der Serverliste) ein Knopf „Jetzt aktualisieren“ – ein Tipp genügt, die Server laufen weiter.
+- Der Knopf „Netzwerk“ in der Minecraft-Übersicht führt jetzt immer zu den Verbindungs-Adressen
+  (vorher landete er bei alten Panels in den Einstellungen).
+- Alle Knöpfe nebeneinander sind jetzt gleich groß; kürzere Beschriftungen.
+- Ja/Nein-Einstellungen im Assistenten für neue Server sind jetzt Auswahlfelder, und der Assistent schlägt
+  passende Ports vor (Minecraft 25565, Velocity 25577, Lavalink 2333, TeamSpeak 9987, Bots 3000 …).
+- Sind keine Ports mehr frei, ergänzt das Panel die Standard-Ports (oder per Knopf im Admin-Bereich).
+
+Version 1.9:
 - Minecraft wie bei einem Hoster: neuer Reiter „Minecraft“ mit Übersicht, Spielern (online, Whitelist,
   Operatoren, Bans), allen wichtigen Einstellungen (server.properties) zum Antippen, Welt sichern oder
   neu erzeugen und Version wechseln.
@@ -202,8 +221,10 @@ Befehle (der Befehl „hp“ wird bei der Installation eingerichtet):
   hp                     Panel im Vordergrund starten (Strg+C beendet nur das Panel)
   hp autostart an|aus    ·   hp update   ·   hp schluessel   ·   hp hilfe
   <server> = Name (oder ein Teil davon), Server-ID oder Nummer aus „hp status“.
-Vorlagen: Minecraft Paper, Vanilla, Fabric (wählt automatisch die neueste Version, die zu deinem Java passt),
-Node.js, Python und „Eigener Befehl“. Konsole, Dateien, Plugins, Start/Stopp und Startup wie gewohnt.
+Vorlagen: Minecraft (Paper, Purpur, Vanilla, Fabric, Forge, NeoForge, Velocity-Proxy – wählt automatisch die
+neueste Version, die zu deinem Java passt), Programme (Node.js, Python – auch aus Git –, Java-Programm, Webseite,
+Eigener Befehl), Discord & Musik (Discord-Bot JavaScript/Python, Lavalink) und Voice (TeamSpeak 3).
+Konsole, Dateien, Plugins, Start/Stopp und Startup wie gewohnt.
 Deine Server laufen weiter, auch wenn das Panel beendet wird. Beim nächsten Start übernimmt es sie wieder.
 Update: in der App unter „Panel verwalten“ > „Jetzt aktualisieren“, mit „hp update“ oder einfach den
 Installationsbefehl erneut ausführen.

@@ -38,7 +38,8 @@ textarea{resize:vertical}
 .btn:disabled{opacity:.45}
 .btn.warn,.iconbtn.warn{color:var(--er);border-color:var(--er)}
 .iconbtn{display:inline-flex;align-items:center;justify-content:center;min-width:38px;height:38px;padding:0 8px;font-size:12px;flex:none}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end}.grid2 .btn,.grid2 .pick{margin-top:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end}.grid2 .btn,.grid2 .pick{margin-top:14px}.grid2>.btn{align-self:stretch;height:auto}
+.btn{min-height:50px;line-height:1.25;text-align:center}.btn>svg{flex:none}.pxi .btn,.hpc .btn,.addrow .btn,.cin .btn,.nrow .btn{min-height:0}
 .seg{display:flex;gap:4px;padding:4px;background:var(--ac2);border-radius:12px}
 .seg button{flex:1;padding:9px;border:0;background:none;color:var(--mu)}.seg .on{background:var(--cd);color:var(--tx);box-shadow:var(--sh)}
 .pick{display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 10px;font-size:14px;font-weight:500;color:var(--tx);border-style:dashed;cursor:pointer;text-align:center}
@@ -2150,7 +2151,7 @@ function srvStatus(s,state){
   if(x==='restoring_backup')return['Backup wird eingespielt …','mid'];
   state=state||'offline';return[STN[state]||state,stc(state)];
 }
-const mapSrv=a=>({id:a.identifier,uuid:a.uuid,name:a.name,desc:a.description||'',node:a.node||'',suspended:!!a.is_suspended||a.status==='suspended',status:a.status||null,owner:!!a.server_owner,limits:a.limits||{},fl:a.feature_limits||{},sftp:a.sftp_details||{},allocs:((a.relationships&&a.relationships.allocations&&a.relationships.allocations.data)||[]).map(x=>x.attributes||x),image:a.docker_image||'',inv:a.invocation||'',maint:!!a.is_node_under_maintenance});
+const mapSrv=a=>({id:a.identifier,uuid:a.uuid,name:a.name,desc:a.description||'',node:a.node||'',suspended:!!a.is_suspended||a.status==='suspended',status:a.status||null,owner:!!a.server_owner,limits:a.limits||{},fl:a.feature_limits||{},sftp:a.sftp_details||{},allocs:((a.relationships&&a.relationships.allocations&&a.relationships.allocations.data)||[]).map(x=>x.attributes||x),image:a.docker_image||'',inv:a.invocation||'',egg:a.egg_name||'',maint:!!a.is_node_under_maintenance});
 const dAlloc=s=>s.allocs.find(a=>a.is_default)||s.allocs[0];
 
 function rowHtml(s){
@@ -2169,6 +2170,7 @@ function drawList(){
   const ls=S.list;
   el.innerHTML=`<div class="addrow" style="margin-top:6px"><select id="ps" style="flex:1">${DB.p.map(x=>`<option value="${x.id}"${x.id===p.id?' selected':''}>${esc(x.name)}</option>`).join('')}<option value="+">＋ Neue Verbindung …</option></select>${p.akey?`<button class="iconbtn" data-a="ad-open" aria-label="Panel verwalten">${ico('shield',18)}</button>`:''}<button class="iconbtn" data-a="reload" aria-label="Aktualisieren">${ico('refresh',18)}</button><button class="iconbtn" data-a="pmenu" aria-label="Verbindung verwalten">${ico('sliders',18)}</button></div>
   ${S.loading&&!ls?'<p class="empty">Lade Server …</p>':''}
+  ${hpOld(p)?`<div class="banner ok"><b>Neue Version des Handy-Panels: ${esc(S.hpv.l)}</b> (installiert: ${esc(S.hpv.v==='alt'?'sehr alt':S.hpv.v)}). Mit Netzwerk-Infos für Spieler, Portfreigabe im Router, neuen Vorlagen und mehr. Deine Server laufen beim Update weiter.<button class="btn pri" data-a="hp-upd"${S.hpv.busy?' disabled':''}>${ico('down',18)}${S.hpv.busy?'Aktualisiere …':'Jetzt aktualisieren'}</button></div>`:''}
   ${S.listErr?`<div class="banner er"><b>Das hat nicht geklappt.</b><br>${esc(S.listErr)}<button class="btn" data-a="diag">${ico('check',18)}Verbindung prüfen</button></div>`:''}
   ${ls&&ls.length>6?`<input id="sq" placeholder="Server suchen …" value="${esc(S.q||'')}" style="margin-top:12px" autocomplete="off">`:''}
   ${ls?`<div class="list" id="sl">${listRows()}</div>`:''}
@@ -2184,7 +2186,20 @@ async function loadList(quiet){
   }catch(e){if(gen!==S.lg)return;S.listErr=fe(e)}
   S.loading=false;if(S.scr==='list')drawList();
   if(S.list&&S.scr==='list')loadRes();
+  if(p.hp&&S.list&&(!S.hpv||S.hpv.p!==p.id))hpCheck(p);
 }
+// Handy-Panel veraltet? (Version vom Panel mit der Version in dieser App vergleichen)
+const hpOld=p=>!!(p&&p.hp&&S.hpv&&S.hpv.p===p.id&&S.hpv.l&&(S.hpv.v==='alt'||vcmp(S.hpv.l,S.hpv.v)>0));
+async function hpCheck(p){S.hpv={p:p.id};let v=null;try{v=(await hpInfo(p)).version}catch(e){if(e&&e.status===404)v='alt'}const l=v?await hpLatest():null;if(S.hpv&&S.hpv.p===p.id){Object.assign(S.hpv,{v,l});if(S.scr==='list'&&hpOld(p))drawList()}}
+async function hpUpdateNow(){
+  const p=cur();if(!p||!p.hp)return;let want=S.hpv&&S.hpv.l;if(!want)want=await hpLatest();
+  if(S.hpv&&S.hpv.v==='alt'){await info('Einmal neu installieren','Diese Panel-Version ist zu alt für ein Update aus der App. Führe auf dem Gerät mit dem Panel einmal den Installationsbefehl aus (nächste Seite) – deine Server und Daten bleiben erhalten.');S.scr='hp';S.hp=null;draw();return}
+  if(S.hpv)S.hpv.busy=1;if(S.scr==='list')drawList();toast('Aktualisiere das Handy-Panel …');
+  try{const r=await api('POST','',{p,base:'/api/handy/update',json:{from:appBase()},timeout:60000});
+    if(r&&r.updated){for(let k=0;k<40;k++){await sleep(1500);try{const i=await hpInfo(p);if(i&&vcmp(i.version,want||r.version)>=0)break}catch(e){}}}
+    toast('✓ Handy-Panel ist jetzt auf Version '+((r&&r.version)||want));S.hpv=null;S.ld={};S.nx={};
+    if(S.scr==='server'&&S.srv){await loadDetail(S.srv.id);drawTop();drawTabs();drawBody()}else{S.list=null;loadList()}}
+  catch(e){if(S.hpv)S.hpv.busy=0;info('Update nicht möglich',esc(fe(e))+'<br><br>Alternativ den Installationsbefehl auf dem Gerät erneut ausführen.');if(S.scr==='list')drawList()}}
 async function loadRes(){
   const gen=S.lg,ls=(S.list||[]).filter(s=>!s.suspended);
   await pool(ls,4,async s=>{const r=att(await api('GET',`/servers/${encodeURIComponent(s.id)}/resources`));if(gen!==S.lg)return;S.res[s.id]=r;if(S.scr==='list')updRow(s.id)});
@@ -2198,7 +2213,7 @@ async function quickPower(id,sig){
 /* ----- Server-Ansicht: Kopf, Reiter, Live-Verbindung (WebSocket) ----- */
 const TABS=[['con','Konsole','terminal','websocket.connect'],['mcx','Minecraft','cube','file.read'],['fil','Dateien','folder','file.read'],['plg','Plugins','puzzle','file.create'],['bak','Backups','archive','backup.read'],['sch','Zeitpläne','clock','schedule.read'],['dbs','Datenbanken','database','database.read'],['net','Netzwerk','globe','allocation.read'],['sta','Startup','sliders','startup.read'],['set','Einstellungen','edit','']];
 const can=k=>!k||(S.perm||[]).includes(k)||(S.perm||[]).includes('*');
-const tabOk=x=>can(x[3])&&(!['plg','mcx'].includes(x[0])||isMc(S.srv));
+const tabOk=x=>(can(x[3])||(x[0]==='net'&&hpNow()))&&(!['plg','mcx'].includes(x[0])||isMc(S.srv))&&!(x[0]==='mcx'&&isProxy(S.srv));
 const sid=()=>encodeURIComponent(S.srv.id);
 const SP=p=>`/servers/${sid()}${p}`;
 
@@ -2268,6 +2283,7 @@ function drawBody(){
 }
 async function setTab(t){
   if(t===S.tab)return;
+  if(!TABS.find(x=>x[0]===t&&tabOk(x))){if(t==='net')return netDialog();return}
   if(S.tab==='fil'&&S.fd&&S.fd.ed&&S.fd.ed.dirty&&!await yes('Ungespeicherte Änderungen','Die Datei wurde geändert und noch nicht gespeichert. Trotzdem wechseln?','Verwerfen',true))return;
   if(S.fd&&S.fd.ed)S.fd.ed=null;
   S.tab=t;drawTop();drawTabs();drawBody();
@@ -2960,7 +2976,9 @@ async function dbOpen(id){
 /* ===== Netzwerk: Adressen zum Verbinden, Ports, Freigabe im Router ===== */
 const hpNow=()=>{const p=cur();return!!(p&&p.hp)};
 const loadNet=quiet=>loadT('net',async()=>{
-  const al=lst(await api('GET',SP('/network/allocations')));let hn=null,pr=null;
+  let al,old=false;
+  try{al=lst(await api('GET',SP('/network/allocations')))}catch(e){if(!hpNow())throw e;al=S.srv.allocs||[];old=true} // ältere Handy-Panels kennen das noch nicht
+  let hn=null,pr=null;if(old)return{al,hn:{err:'old'},pr,old};
   if(hpNow()){const id=S.srv.id;[hn,pr]=await Promise.all([api('GET','',{base:'/api/handy/network',q:S.netRf?{refresh:1}:undefined,timeout:20000}).catch(e=>({err:e&&e.status===404?'old':fe(e)})),api('GET','',{base:'/api/handy/probe',q:{server:id},timeout:12000}).catch(()=>null)]);S.netRf=0}
   return{al,hn,pr};
 },quiet);
@@ -2971,6 +2989,7 @@ function netStatus(pr,mc,ll){
   if(!pr)return'';
   if(pr.online){if(mc)return`<div class="nst on">${pr.favicon?`<img src="${esc(pr.favicon)}" alt="" width="40" height="40">`:`<span class="ib sm">${ico('cube',20)}</span>`}<span><b>● Online</b> · ${esc(pr.version||'Minecraft')} · ${pr.players?pr.players.online+' / '+pr.players.max+' Spieler':''}${pr.ms?' · '+pr.ms+' ms':''}<small>${esc(pr.motd||'')}${pr.players&&pr.players.sample&&pr.players.sample.length?' · '+esc(pr.players.sample.join(', ')):''}</small></span></div>`;
     if(ll)return`<div class="nst on"><span class="ib sm">${ico('music',20)}</span><span><b>● Bereit</b>${pr.version?' · Lavalink '+esc(pr.version):''}${pr.err?' · '+esc(pr.err):''}<small>${pr.sources&&pr.sources.length?'Quellen: '+esc(pr.sources.join(', ')):''}${pr.plugins&&pr.plugins.length?' · Plugins: '+esc(pr.plugins.join(', ')):''}</small></span></div>`;
+    if(pr.type==='ts3')return`<div class="nst on"><span class="ib sm">${ico('mic',20)}</span><span><b>● Läuft</b> · TeamSpeak 3<small>Verbinden: TeamSpeak → Verbindungen → Verbinden → Adresse unten (Port ${pr.port}, UDP). ServerQuery: Port ${pr.query}.</small></span></div>`;
     return`<div class="nst on"><span><b>● Erreichbar</b> auf Port ${pr.port}</span></div>`}
   return`<div class="nst"><span><b>○ ${pr.state==='offline'?'Server ist aus':pr.state==='starting'?'Startet …':'Antwortet (noch) nicht'}</b><small>${pr.state==='offline'?'Starte ihn in der Konsole – dann siehst du hier, ob er erreichbar ist.':pr.state==='starting'?'Gleich geht es los – Minecraft braucht beim ersten Start etwas länger.':pr.err&&pr.err!=='aus'?esc(pr.err):'Der Port ist noch nicht offen.'}</small></span></div>`}
 const LLS=[['shoukaku','Node.js · Shoukaku'],['llc','Node.js · lavalink-client'],['wavelink','Python · wavelink'],['raw','Nur die Daten']];
@@ -2985,7 +3004,7 @@ function netConnect(d){
     const host=def.ip_alias||(def.ip&&def.ip!=='0.0.0.0'?def.ip:(S.srv.sftp&&S.srv.sftp.ip)||def.ip),ad=mc?mcA(host,port):host+':'+port;
     return`<div class="ncard"><h3>${mc?'So verbinden sich Spieler':'Adresse des Servers'}</h3><div class="nrow"><span>${ico('globe',18)}</span><code>${esc(ad)}</code>${cpyB(ad)}</div>${mc?`<p class="st">In Minecraft: Mehrspieler → Server hinzufügen → diese Adresse eintragen.</p><button class="btn" data-a="net-chk" data-h="${esc(host)}" data-p="${port}">${ico('check',18)}Von außen testen</button>${N.chk?N.chk:''}`:''}</div>`}
   const n=d.hn&&!d.hn.err?d.hn:null;
-  if(d.hn&&d.hn.err==='old')return`<div class="banner">Die Netzwerk-Infos (IP-Adressen, Portfreigabe) gibt es ab Handy-Panel 1.3. Aktualisiere es: Regler-Symbol → „Handy-Panel: Fernzugriff, Koppeln, Update“.</div>`;
+  if(d.hn&&d.hn.err==='old')return`<div class="ncard"><h3>${mc?'So verbinden sich Spieler':'Adressen des Servers'}</h3><div class="nrow"><span>${ico('server',18)}</span><div><small>Port des Servers</small><code>${port}</code></div>${cpyB(String(port))}</div><div class="banner"><b>Dein Handy-Panel ist veraltet.</b> Die IP-Adressen für Spieler, die automatische Portfreigabe im Router und der Test von außen brauchen Version 1.3 oder neuer. Das Update dauert nur ein paar Sekunden – deine Server laufen weiter.<button class="btn pri" data-a="hp-upd">${ico('down',18)}Handy-Panel jetzt aktualisieren</button></div></div>`;
   if(!n)return`<div class="banner er">Netzwerk-Infos nicht verfügbar: ${esc((d.hn&&d.hn.err)||'?')}</div>`;
   const lan=(n.lan.find(x=>!x.virt)||n.lan[0]||{}).ip,pub=n.public.v4,fw=(n.maps||[]).filter(m=>m.port===port),fok=fw.some(m=>m.ok!==false),ferr=fw.find(m=>m.ok===false);
   const A=h=>mc?mcA(h,port):h+':'+port,row=(ic,l,v,sub)=>`<div class="nrow"><span title="${esc(l)}">${ico(ic,18)}</span><div><small>${l}</small><code>${esc(v)}</code>${sub?`<em>${sub}</em>`:''}</div>${cpyB(v)}</div>`;
@@ -3010,6 +3029,9 @@ function netConnect(d){
   <details class="dt"><summary>Kein Zugriff auf den Router? Spiele-Tunnel</summary><p class="st">Mit <b>playit.gg</b> (kostenlos) bekommt dein Server eine feste Adresse aus dem Internet – ganz ohne Portfreigabe, auch bei CGNAT oder mobilen Daten. Konto auf playit.gg anlegen, den „playit“-Agenten auf diesem Gerät installieren (Linux/Windows/Mac; auf Android über Termux), einen „Minecraft Java“-Tunnel auf <b>127.0.0.1:${port}</b> anlegen und die angezeigte Adresse an deine Freunde geben.<br>Der Fernzugriff des Handy-Panels gilt nur für die App, nicht für Spieler.</p></details></div>`;
   return h;
 }
+function netDialog(){const a=(S.srv.allocs||[]),d=a.find(x=>x.is_default)||a[0];if(!d)return info('Keine Adresse','Diesem Server ist keine Adresse zugewiesen.');
+  const host=d.ip_alias||(d.ip&&d.ip!=='0.0.0.0'?d.ip:(S.srv.sftp&&S.srv.sftp.ip)||d.ip),ad=isMc(S.srv)?mcA(host,d.port):host+':'+d.port;
+  ask({title:'Adresse des Servers',desc:(isMc(S.srv)?'In Minecraft: Mehrspieler → Server hinzufügen → diese Adresse:':'So erreichst du den Server:')+'<div class="srcbox" style="margin-top:8px;font-size:16px">'+esc(ad)+'</div>',ok:'Kopieren',no:'Schließen'}).then(v=>{if(v)copyText(ad)})}
 function drawNet(){
   shell('net',()=>loadNet(),d=>{
     const a=d.al,lim=(S.srv.fl||{}).allocations;
@@ -3032,7 +3054,7 @@ async function netMenu(id){
 async function netUp(port,on,proto){
   if(on&&!await yes('Port im Router freigeben?','Port <b>'+port+'</b> wird über UPnP im Router geöffnet. Dann ist dein Server <b>aus dem ganzen Internet</b> erreichbar. Für Minecraft ist das gewollt – nutze trotzdem eine Whitelist, wenn nur Freunde spielen sollen.','Freigeben'))return;
   toast(on?'Frage den Router …':'Entferne Freigabe …');
-  if(await act(()=>api('POST','',{base:'/api/handy/upnp',json:{port,proto:proto||(isMc(S.srv)?'BOTH':'TCP'),on,name:S.srv.name},timeout:30000}),on?'✓ Im Router freigegeben':'Freigabe entfernt'))loadNet(true)}
+  if(await act(()=>api('POST','',{base:'/api/handy/upnp',json:{port,proto:proto||(isMc(S.srv)||isTs(S.srv)?'BOTH':'TCP'),on,name:S.srv.name},timeout:30000}),on?'✓ Im Router freigegeben':'Freigabe entfernt'))loadNet(true)}
 // Prüft über mcsrvstat.us (von außen), ob Spieler den Server erreichen
 async function netChk(h,port){
   const N=S.nx||(S.nx={});N.chk=`<div class="diag">${dg('..','Teste '+esc(h+':'+port)+' von außen …')}</div>`;redraw('net');
@@ -3114,26 +3136,37 @@ Object.assign(H,{
 /* ----- Minecraft: Plugins & Mods von Modrinth ----- */
 Object.assign(P,{cube:'<path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/>',wifi:'<path d="M2 9a15 15 0 0120 0M5 12.5a10 10 0 0114 0M8.5 16a5 5 0 017 0"/><circle cx="12" cy="19.5" r="1"/>',music:'<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',users2:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0"/>',puzzle:'<path d="M10 3a2 2 0 014 0v2h4a1 1 0 011 1v4h-2a2 2 0 000 4h2v4a1 1 0 01-1 1h-4v-2a2 2 0 00-4 0v2H6a1 1 0 01-1-1v-4h2a2 2 0 000-4H5V6a1 1 0 011-1h4z"/>'});
 const MR='https://api.modrinth.com/v2';
-const LOADERS={paper:['paper','purpur','spigot','bukkit','folia'],fabric:['fabric']};
-const LNAME={paper:'Paper/Spigot (Plugins)',fabric:'Fabric (Mods)'};
-const isLl=s=>/lavalink/i.test((s&&s.inv)||'');
-const isMc=s=>!isLl(s)&&/java|\.jar\b/i.test((s&&(s.inv||s.image))||'');
+const LOADERS={paper:['paper','purpur','spigot','bukkit','folia'],fabric:['fabric'],forge:['forge'],neoforge:['neoforge'],velocity:['velocity']};
+const LNAME={paper:'Paper/Spigot (Plugins)',fabric:'Fabric (Mods)',forge:'Forge (Mods)',neoforge:'NeoForge (Mods)',velocity:'Velocity (Proxy-Plugins)'};
+const isModL=l=>['fabric','forge','neoforge'].includes(l);
+const eggLoader=e=>/paper|purpur|folia|spigot|bukkit/i.test(e)?'paper':/fabric|quilt/i.test(e)?'fabric':/neoforge/i.test(e)?'neoforge':/forge/i.test(e)?'forge':/velocity/i.test(e)?'velocity':/vanilla/i.test(e)?'':null;
+const isLl=s=>/lavalink/i.test((s&&(s.egg+' '+s.inv))||'');
+const isProxy=s=>/velocity|bungee|waterfall/i.test((s&&(s.egg+' '+s.inv))||'');
+const isTs=s=>/teamspeak|ts3server/i.test((s&&(s.egg+' '+s.inv))||'');
+const isMc=s=>!!s&&!isLl(s)&&!/java-programm|\{\{JARFILE\}\}/i.test(s.egg||'')&&(/paper|purpur|vanilla|fabric|forge|velocity/i.test(s.egg||'')||(!s.egg&&/java|\.jar\b/i.test(s.inv||s.image||'')));
 const enc2=encodeURIComponent;
 // Art (Paper/Fabric) und Minecraft-Version eines Servers erkennen
-async function mcInfo(p,id){
+async function mcInfo(p,id,eg){
   const sp=x=>'/servers/'+enc2(id)+x;
-  const root=lst(await api('GET',sp('/files/list'),{p,q:{directory:'/'}})).map(mapF),has=n=>root.some(x=>x.name===n&&!x.file);
-  let loader=has('plugins')?'paper':has('mods')?'fabric':null,ver=null,txt=async f=>{try{return String(await api('GET',sp('/files/contents'),{p,q:{file:f},as:'text',timeout:20000})||'')}catch(e){return''}};
-  if(!loader){if(root.some(x=>/fabric/i.test(x.name)||x.name==='.fabric'))loader='fabric';else if(root.some(x=>/paper|purpur|spigot|bukkit/i.test(x.name)||x.name==='version_history.json'))loader='paper'}
+  if(eg==null){const l=S.list&&S.list.find(x=>x.id===id);if(l)eg=l.egg||''}
+  const root=lst(await api('GET',sp('/files/list'),{p,q:{directory:'/'}})).map(mapF),has=n=>root.some(x=>x.name===n&&!x.file),hasF=n=>root.some(x=>x.name===n&&x.file);
+  let ver=null,txt=async f=>{try{return String(await api('GET',sp('/files/contents'),{p,q:{file:f},as:'text',timeout:20000})||'')}catch(e){return''}};
+  let loader=eg?eggLoader(eg):null;const known=loader!=null;if(loader==='')loader=null;
+  if(!known){
+    if(hasF('velocity.toml'))loader='velocity';
+    else if(hasF('start_args.txt')||hasF('user_jvm_args.txt')){const a=await txt('/start_args.txt');loader=/neoforge/i.test(a)?'neoforge':/minecraftforge|fmlloader|forge/i.test(a)?'forge':has('mods')?'forge':null}
+    else loader=has('plugins')?'paper':has('mods')?'fabric':null;
+    if(!loader){if(root.some(x=>/fabric/i.test(x.name)||x.name==='.fabric'))loader='fabric';else if(root.some(x=>/paper|purpur|spigot|bukkit/i.test(x.name)||x.name==='version_history.json'))loader='paper'}}
   const vh=root.some(x=>x.name==='version_history.json')?await txt('/version_history.json'):'';let m=/MC:\s*([\w.\-]+)\)/.exec(vh);if(m)ver=m[1];
-  if(!ver||!loader){const lg=await txt('/logs/latest.log');m=/Starting minecraft server version ([\w.\-]+)/.exec(lg);if(m&&!ver)ver=m[1];if(!loader&&/Paper|Purpur|Spigot|Bukkit|CraftBukkit/.test(lg))loader='paper';if(!loader&&/Fabric Loader|fabricloader/i.test(lg))loader='fabric'}
-  if(!ver){try{const v=lst(await api('GET',sp('/startup'),{p})).find(x=>/MINECRAFT_VERSION|MC_VERSION|^VERSION$/.test(x.env_variable||''));const val=v&&(v.server_value||v.default_value);if(val&&/^\d/.test(val))ver=val}catch(e){}}
-  return{loader,version:ver,dir:loader==='fabric'?'/mods':'/plugins'};
+  if(!ver&&hasF('start_args.txt')){m=/fml\.mcVersion[=\s]+([\d.]+)/.exec(await txt('/start_args.txt'));if(m)ver=m[1]} // Forge/NeoForge
+  if(loader!=='velocity'&&(!ver||(!loader&&!known))){const lg=await txt('/logs/latest.log');m=/Starting minecraft server version ([\w.\-]+)/.exec(lg);if(m&&!ver)ver=m[1];if(!known&&!loader){if(/NeoForge|neoforged/.test(lg))loader='neoforge';else if(/MinecraftForge|Forge Mod Loader|fmlloader/i.test(lg))loader='forge';else if(/Paper|Purpur|Spigot|Bukkit|CraftBukkit/.test(lg))loader='paper';else if(/Fabric Loader|fabricloader/i.test(lg))loader='fabric'}}
+  if(!ver&&loader!=='velocity'){try{const v=lst(await api('GET',sp('/startup'),{p})).find(x=>/MINECRAFT_VERSION|MC_VERSION|^VERSION$/.test(x.env_variable||''));const val=v&&(v.server_value||v.default_value);if(val&&/^\d/.test(val))ver=val}catch(e){}}
+  return{loader,version:loader==='velocity'?null:ver,dir:isModL(loader)?'/mods':'/plugins'};
 }
 async function mrGet(u){let r;try{r=await fetch(MR+u)}catch(e){throw new ApiErr('Modrinth ist nicht erreichbar (Internet?).')}if(r.status===404)return null;if(!r.ok)throw new ApiErr('Modrinth antwortet nicht richtig ('+r.status+').');return r.json()}
 async function mrSearch(q,info,limit){
   if(!info||!info.loader)throw new ApiErr('Auf diesem Server lassen sich keine Plugins installieren (Vanilla). Nimm Paper oder Fabric.');
-  const fac=[[info.loader==='fabric'?'project_type:mod':'project_type:plugin'],LOADERS[info.loader].map(l=>'categories:'+l)];if(info.version)fac.push(['versions:'+info.version]);
+  const fac=[[isModL(info.loader)?'project_type:mod':'project_type:plugin'],LOADERS[info.loader].map(l=>'categories:'+l)];if(info.version)fac.push(['versions:'+info.version]);
   const j=await mrGet('/search?limit='+(limit||12)+'&index=relevance&query='+enc2(q||'')+'&facets='+enc2(JSON.stringify(fac)));
   return(j&&j.hits||[]).map(h=>({id:h.project_id,slug:h.slug,title:h.title,desc:h.description||'',dl:h.downloads||0,icon:h.icon_url||'',author:h.author||''}))}
 async function mrVersion(project,info){
@@ -3161,11 +3194,11 @@ function drawPlg(){
   if(M.err){b.innerHTML=`<div class="banner er">${esc(M.err)}<button class="btn" data-a="mc-re">${ico('refresh',18)}Erneut versuchen</button></div>`;return}
   if(!M.info){b.innerHTML='<p class="empty">Erkenne Minecraft-Version …</p>';if(!M.ld){M.ld=1;mcInfo(cur(),S.srv.id).then(i=>{M.info=i;return mcList(cur(),S.srv.id,i)}).then(l=>{M.inst=l}).catch(e=>{M.err=fe(e)}).finally(()=>{M.ld=0;if(S.tab==='plg')drawPlg()})}return}
   const I=M.info,ok=!!I.loader,names=new Set((M.inst||[]).map(x=>base(x.name)));
-  b.innerHTML=`${hd(I.loader==='fabric'?'Mods':'Plugins',M.inst?M.inst.length:null,`<button class="iconbtn" data-a="mc-set" aria-label="Art und Version ändern">${ico('sliders',18)}</button>`)}
+  b.innerHTML=`${hd(isModL(I.loader)?'Mods':'Plugins',M.inst?M.inst.length:null,`<button class="iconbtn" data-a="mc-set" aria-label="Art und Version ändern">${ico('sliders',18)}</button>`)}
   <p class="sv-sub">${ok?esc(LNAME[I.loader]):'Vanilla – keine Plugins möglich'} · Minecraft ${esc(I.version||'unbekannt')} · Ordner ${esc(I.dir)}</p>
   ${ok?'':'<div class="banner">Für Plugins brauchst du einen <b>Paper</b>-Server (oder Spigot/Purpur), für Mods <b>Fabric</b>. Erkennt die App die Art falsch, stell sie über das Regler-Symbol ein.</div>'}
   ${M.hint?`<div class="banner ok">Installiert! Plugins werden erst nach einem <b>Neustart</b> geladen.<button class="btn" data-a="mc-rs">${ico('refresh',18)}Server jetzt neu starten</button></div>`:''}
-  ${ok?`<div class="addrow"><input id="mcq" placeholder="${I.loader==='fabric'?'Mod':'Plugin'} suchen, z. B. LuckPerms, EssentialsX …" value="${esc(M.q)}" autocomplete="off"><button class="btn pri" data-a="mc-s" aria-label="Suchen">${ico('globe',18)}</button></div>
+  ${ok?`<div class="addrow"><input id="mcq" placeholder="${isModL(I.loader)?'Mod':'Plugin'} suchen, z. B. LuckPerms, EssentialsX …" value="${esc(M.q)}" autocomplete="off"><button class="btn pri" data-a="mc-s" aria-label="Suchen">${ico('globe',18)}</button></div>
   ${M.res==='…'?'<p class="st">Suche auf Modrinth …</p>':Array.isArray(M.res)?(M.res.length?`<div class="list">${M.res.map(r=>`<div class="item"><span class="ib sm" style="overflow:hidden">${r.icon?`<img src="${esc(r.icon)}" alt="" width="36" height="36" loading="lazy" style="display:block">`:ico('puzzle',18)}</span><span class="tx"><b>${esc(r.title)}</b><small>${esc(r.desc.slice(0,110))} · ↓ ${fmtN(r.dl)}</small></span>${names.has(base(r.slug))||M.busy[r.id]==='ok'?`<span class="tag g">✓</span>`:M.busy[r.id]?'<span class="st">…</span>':`<button class="iconbtn" data-a="mc-i" data-i="${esc(r.slug)}" data-k="${esc(r.id)}">${ico('down',16)}Laden</button>`}</div>`).join('')}</div>`:'<p class="st">Nichts gefunden (für diese Version).</p>'):'<p class="st">Plugins und Mods kommen von <b>Modrinth</b> (kostenlos). Es werden nur Versionen angezeigt, die zu deinem Server passen; nötige Abhängigkeiten werden mitinstalliert.</p>'}`:''}
   ${hd('Installiert',M.inst?M.inst.length:null)}
   <div class="list">${(M.inst||[]).map(x=>`<div class="item"><span class="tx"><b>${esc(x.name)}</b><small>${fmtB(x.size)}${/\.disabled$/.test(x.name)?' · deaktiviert':''}</small></span><button class="iconbtn" data-a="mc-del" data-n="${esc(x.name)}" aria-label="Entfernen">${ico('trash',18)}</button></div>`).join('')}</div>
@@ -3181,8 +3214,8 @@ Object.assign(H,{
   'mc-del':async b=>{const M=S.mc,n=b.dataset.n;if(!await yes('Entfernen?','<b>'+esc(n)+'</b> wird gelöscht. Wirkt nach einem Neustart.','Entfernen',true))return;
     if(await act(()=>api('POST',SP('/files/delete'),{json:{root:M.info.dir,files:[n]}}),'Entfernt')){M.inst=await mcList(cur(),S.srv.id,M.info);M.hint=true;drawPlg()}},
   'mc-rs':async()=>{S.mc.hint=false;await act(()=>api('POST',SP('/power'),{json:{signal:'restart'}}),'Neustart wird ausgeführt');drawPlg()},
-  'mc-set':async()=>{const M=S.mc;const v=await ask({title:'Art und Version',desc:'Normalerweise erkennt die App das selbst. Stell es hier ein, falls nicht.',fields:[{id:'l',type:'select',label:'Art',value:M.info.loader||'',opts:[['paper','Paper/Spigot/Purpur (Plugins)'],['fabric','Fabric (Mods)'],['','Vanilla (keine Plugins)']]},{id:'v',label:'Minecraft-Version',value:M.info.version||'',ph:'z. B. 1.21.11'}],ok:'Übernehmen'});
-    if(!v)return;M.info={loader:v.l||null,version:v.v.trim()||null,dir:v.l==='fabric'?'/mods':'/plugins'};M.res=null;M.inst=await mcList(cur(),S.srv.id,M.info);drawPlg()}
+  'mc-set':async()=>{const M=S.mc;const v=await ask({title:'Art und Version',desc:'Normalerweise erkennt die App das selbst. Stell es hier ein, falls nicht.',fields:[{id:'l',type:'select',label:'Art',value:M.info.loader||'',opts:[['paper','Paper/Spigot/Purpur (Plugins)'],['forge','Forge (Mods)'],['neoforge','NeoForge (Mods)'],['velocity','Velocity (Proxy-Plugins)'],['fabric','Fabric (Mods)'],['','Vanilla (keine Plugins)']]},{id:'v',label:'Minecraft-Version',value:M.info.version||'',ph:'z. B. 1.21.11'}],ok:'Übernehmen'});
+    if(!v)return;M.info={loader:v.l||null,version:v.v.trim()||null,dir:isModL(v.l)?'/mods':'/plugins'};M.res=null;M.inst=await mcList(cur(),S.srv.id,M.info);drawPlg()}
 });
 /* ===== Minecraft: Übersicht, Spieler, Einstellungen (server.properties), Welt ===== */
 const PROPS=[['motd','Beschreibung in der Serverliste (MOTD)','text','','all'],['max-players','Maximale Spieler','num','','all'],
@@ -3231,9 +3264,9 @@ function mxOver(M){
   return`${M.eula===false?`<div class="banner er"><b>Die Minecraft-EULA ist nicht akzeptiert</b> – ohne sie startet der Server nicht.<button class="btn" data-a="mx-eula">${ico('check',18)}EULA lesen und akzeptieren</button></div>`:''}
   ${M.fresh?'<div class="banner">Der Server ist noch nie gelaufen. Starte ihn einmal – dann legt Minecraft die Einstellungen und die Welt an.</div>':''}
   ${hpNow()?netStatus(M.pr,true,false):`<div class="nst${mxRun()?' on':''}"><span><b>${mxRun()?'● Läuft':'○ Aus'}</b></span></div>`}
-  <div class="kv">${kvr('Software',I.loader?LNAME[I.loader]:'Vanilla')}${kvr('Version',I.version||(vv&&(vv.server_value||vv.default_value))||'unbekannt')}${kvr('Spielmodus',g('gamemode'))}${kvr('Schwierigkeit',g('difficulty'))}${kvr('Max. Spieler',P['max-players']||'–')}${kvr('Whitelist',on(P['white-list']))}${kvr('Echte Konten',P['online-mode']==='false'?'aus (cracked)':'an')}${kvr('Welt',P['level-name']||'world')}${kvr('RAM',mem?mem+' MB':'unbegrenzt')}</div>
+  <div class="kv">${kvr('Software',I.loader?LNAME[I.loader]:'Vanilla')}${kvr('Version',I.version||((vv&&(vv.server_value||vv.default_value))==='latest'?'neueste (wird beim Start erkannt)':vv&&(vv.server_value||vv.default_value))||'unbekannt')}${kvr('Spielmodus',g('gamemode'))}${kvr('Schwierigkeit',g('difficulty'))}${kvr('Max. Spieler',P['max-players']||'–')}${kvr('Whitelist',on(P['white-list']))}${kvr('Echte Konten',P['online-mode']==='false'?'aus (cracked)':'an')}${kvr('Welt',P['level-name']||'world')}${kvr('RAM',mem?mem+' MB':'unbegrenzt')}</div>
   ${mem&&mem<1024?'<p class="st">Tipp: Unter 1 GB RAM ruckelt Minecraft schnell. Für 2–5 Spieler sind 1,5–2 GB gut (Einstellungen → Ressourcen bzw. im Admin-Bereich).</p>':''}
-  <div class="grid2"><button class="btn" data-a="tab" data-t="net">${ico('globe',18)}Adresse & Netzwerk</button>${can('file.create')&&I.loader?`<button class="btn" data-a="tab" data-t="plg">${ico('puzzle',18)}${I.loader==='fabric'?'Mods':'Plugins'}</button>`:`<button class="btn" data-a="mx-sec" data-v="set">${ico('sliders',18)}Einstellungen</button>`}</div>
+  <div class="grid2"><button class="btn" data-a="tab" data-t="net">${ico('globe',18)}Netzwerk</button>${can('file.create')&&I.loader?`<button class="btn" data-a="tab" data-t="plg">${ico('puzzle',18)}${isModL(I.loader)?'Mods':'Plugins'}</button>`:`<button class="btn" data-a="mx-sec" data-v="set">${ico('sliders',18)}Einstellungen</button>`}</div>
   ${vv&&can('startup.update')?`<button class="btn" data-a="mx-ver">${ico('refresh',18)}Minecraft-Version ändern</button>`:''}
   <p class="st">Spieler verwalten, server.properties bequem bearbeiten und die Welt sichern oder neu erzeugen: oben die Bereiche wählen.</p>`}
 function mxPly(M){
@@ -3357,7 +3390,7 @@ window.tbSrv={
   api:(pid,m,path,o)=>api(m,path,Object.assign({},o,{p:profById(pid)})),
   aapi:(pid,m,path,o)=>aapi(m,path,Object.assign({},o,{p:profById(pid)})),
   console:(pid,id,o)=>conRead(profById(pid),id,o),
-  mcInfo:(pid,id)=>mcInfo(profById(pid),id),
+  mcInfo:(pid,id,eg)=>mcInfo(profById(pid),id,eg),
   mrSearch,
   mrInstall:(pid,id,project,info)=>mrInstall(profById(pid),id,project,info),
   mcList:(pid,id,info)=>mcList(profById(pid),id,info),
@@ -3475,7 +3508,7 @@ async function adEgg(){const N=S.ad&&S.ad.nw;if(!N||!N.f.egg)return;const[nest,i
   catch(er){N.eg={err:fe(er)}}drawNew()}
 // Passenden freien Port vorschlagen: Minecraft 25565 …, Lavalink 2333 …, sonst nicht die Minecraft-Ports
 function adPickAlloc(N){if(!Array.isArray(N.al)||!N.al.length||!N.eg||N.eg.err)return;const n=String(N.eg.name||'')+' '+String(N.eg.startup||''),mcp=a=>(a.port>=25565&&a.port<=25575)||a.port===19132;
-  const ok=/lavalink/i.test(n)?a=>a.port>=2333&&a.port<=2340:/paper|vanilla|fabric|forge|spigot|purpur|bukkit|minecraft|nogui/i.test(n)?a=>a.port>=25565&&a.port<=25575:a=>!mcp(a)&&!(a.port>=2333&&a.port<=2340);
+  const ok=/lavalink/i.test(n)?a=>a.port>=2333&&a.port<=2340:/velocity/i.test(n)?a=>a.port===25577||(a.port>=25565&&a.port<=25575):/teamspeak/i.test(n)?a=>a.port===9987:/paper|vanilla|fabric|forge|spigot|purpur|bukkit|minecraft|nogui/i.test(n)?a=>a.port>=25565&&a.port<=25575:a=>!mcp(a)&&!(a.port>=2333&&a.port<=2340)&&a.port!==25577&&a.port!==9987;
   const curA=N.al.find(a=>String(a.id)===String(N.f.alloc));if(curA&&ok(curA))return;const b=N.al.find(ok);if(b)N.f.alloc=b.id}
 async function adAllocs(){const N=S.ad&&S.ad.nw;if(!N||!N.f.node)return;N.al=null;drawNew();
   try{const l=await aall('/nodes/'+N.f.node+'/allocations');if(S.ad.nw!==N)return;N.al=l.filter(a=>!a.assigned);N.f.alloc=N.al[0]?N.al[0].id:'';adPickAlloc(N)}catch(e){N.al={err:fe(e)}}drawNew()}
@@ -3494,7 +3527,7 @@ function drawNew(){
   ${!N.eggs.length?'<div class="banner">Im Panel gibt es noch keine Eggs.</div>':''}
   ${eg?eg.err?`<p class="st err">${esc(eg.err)}</p>`:`${imgs.length?`<label>Docker-Image</label><select data-nf="image">${imgs.map(([k,i])=>`<option value="${esc(i)}"${i===f.image?' selected':''}>${esc(k)}</option>`).join('')}</select>`:inp('image','Docker-Image')}
     <label>Startbefehl</label><textarea data-nf="startup" rows="2" class="code">${esc(f.startup)}</textarea>
-    ${vars.map(v=>`<label>${esc(v.name)}${/required/.test(v.rules||'')?' *':''}</label><input data-ne="${esc(v.env_variable)}" value="${esc(f.env[v.env_variable]||'')}" autocomplete="off" autocapitalize="off" spellcheck="false"><p class="ai-hint">${esc((v.description||'').slice(0,200))} <code>${esc(v.env_variable)}</code></p>`).join('')}`:'<p class="st">Lade Egg …</p>'}
+    ${vars.map(v=>`<label>${esc(v.name)}${/required/.test(v.rules||'')?' *':''}</label>${/in:true,false|in:false,true/.test(v.rules||'')?`<select data-ne="${esc(v.env_variable)}"><option value="true"${f.env[v.env_variable]==='true'?' selected':''}>Ja</option><option value="false"${f.env[v.env_variable]!=='true'?' selected':''}>Nein</option></select>`:`<input data-ne="${esc(v.env_variable)}" value="${esc(f.env[v.env_variable]||'')}" autocomplete="off" autocapitalize="off" spellcheck="false">`}<p class="ai-hint">${esc((v.description||'').slice(0,200))} <code>${esc(v.env_variable)}</code></p>`).join('')}`:'<p class="st">Lade Egg …</p>'}
   <p class="ai-sec">Ressourcen</p>
   <div class="grid2"><div>${inp('memory','RAM (MB)','number',' min="0"')}</div><div>${inp('disk','Speicher (MB)','number',' min="0"')}</div></div>
   <div class="grid2"><div>${inp('cpu','CPU (%)','number',' min="0"')}</div><div>${inp('swap','Swap (MB)','number')}</div></div>
@@ -3547,12 +3580,15 @@ function drawNode(){
   if(D.err)h+=`<div class="banner er">${esc(D.err)}</div>`;
   else if(!n)h+='<p class="empty">Lade …</p>';
   else{const fr=D.al.filter(a=>!a.assigned).length;
-    h+=`<div class="kv">${kvr('Adresse',(n.scheme||'https')+'://'+n.fqdn+':'+n.daemon_listen,1)}${kvr('SFTP-Port',String(n.daemon_sftp))}${kvr('RAM',mb(n.memory)+(n.allocated_resources?' (vergeben: '+mb(n.allocated_resources.memory)+')':''))}${kvr('Speicher',mb(n.disk)+(n.allocated_resources?' (vergeben: '+mb(n.allocated_resources.disk)+')':''))}${kvr('Wartung',n.maintenance_mode?'an':'aus')}</div>
-    <div class="grid2"><button class="btn" data-a="ad-conf">${ico('file',18)}Wings-Konfiguration</button><button class="btn" data-a="ad-maint">${ico('sliders',18)}Wartung ${n.maintenance_mode?'aus':'an'}</button></div>
+    const hp=hpNow();
+    h+=`<div class="kv">${hp?kvr('Gerät',n.description||n.name):kvr('Adresse',(n.scheme||'https')+'://'+n.fqdn+':'+n.daemon_listen,1)}${hp?'':kvr('SFTP-Port',String(n.daemon_sftp))}${kvr('RAM',mb(n.memory)+(n.allocated_resources?' (vergeben: '+mb(n.allocated_resources.memory)+')':''))}${kvr('Speicher',mb(n.disk)+(n.allocated_resources?' (vergeben: '+mb(n.allocated_resources.disk)+')':''))}${kvr('Wartung',n.maintenance_mode?'an':'aus')}</div>
+    ${hp?`<p class="st">Welche Adresse deine Spieler eintragen, steht beim jeweiligen Server im Reiter <b>Netzwerk</b> – dort kannst du den Port auch im Router freigeben.</p>`:''}
+    <div class="grid2">${hp?`<button class="btn" data-a="hpm-open">${ico('globe',18)}Panel verwalten</button>`:`<button class="btn" data-a="ad-conf">${ico('file',18)}Konfiguration</button>`}<button class="btn" data-a="ad-maint">${ico('sliders',18)}Wartung ${n.maintenance_mode?'aus':'an'}</button></div>
+    ${fr?'':`<div class="banner"><b>Kein Port mehr frei.</b> Jeder Server braucht einen eigenen Port – ohne freien Port lässt sich kein neuer Server anlegen.${hp?`<button class="btn" data-a="ad-defp">${ico('plus',18)}Standard-Ports hinzufügen</button>`:''}</div>`}
     ${hd('Ports',D.al.length+' · '+fr+' frei',`<button class="iconbtn" data-a="ad-anew" aria-label="Ports hinzufügen">${ico('plus',18)}</button>`)}
     <div class="list">${D.al.slice(0,300).map(a=>`<div class="item"><span class="tx"><b>${esc((a.alias||a.ip)+':'+a.port)}</b><small>${a.assigned?'vergeben':'frei'}${a.notes?' · '+esc(a.notes):''}</small></span>${a.assigned?'':`<button class="iconbtn" data-a="ad-adel" data-i="${a.id}" aria-label="Port löschen">${ico('trash',18)}</button>`}</div>`).join('')}</div>
     ${D.al.length?'':'<p class="empty">Noch keine Ports. Jeder Server braucht mindestens einen.</p>'}
-    <button class="btn warn" data-a="ad-ndel">${ico('trash',18)}Node löschen</button>`}
+    ${hp?'':`<button class="btn warn" data-a="ad-ndel">${ico('trash',18)}Node löschen</button>`}`}
   el.innerHTML=h}
 async function adConf(){const D=S.ad.nd;try{const c=await aapi('GET','/nodes/'+D.id+'/configuration');const y=toYml(c);
   await ask({title:'Wings-Konfiguration',desc:'Auf dem Node als <code>/etc/pterodactyl/config.yml</code> speichern und Wings neu starten (<code>systemctl restart wings</code>).',pre:`<div class="srcbox" style="max-height:300px">${esc(y)}</div>`,ok:'Kopieren',no:'Schließen'}).then(v=>{if(v)copyText(y)})}
@@ -3586,6 +3622,8 @@ Object.assign(H,{
   'ad-node':b=>adNode(+b.dataset.i),
   'ad-ndx':()=>{S.ad.nd=null;drawAdmin()},
   'ad-conf':()=>adConf(),
+  'hpm-open':()=>{S.ad=null;openHpm()},
+  'ad-defp':async()=>{const n=S.ad.nd.n;if(await act(()=>aapi('POST','/nodes/'+n.id+'/allocations',{json:{ip:'0.0.0.0',ports:['25565-25570','25577','19132','2333-2334','3000-3002','8081-8082','9987']}}),'Ports hinzugefügt'))adNode(n.id)},
   'ad-maint':async()=>{const n=S.ad.nd.n;if(await act(()=>aapi('PATCH','/nodes/'+n.id,{json:{name:n.name,location_id:n.location_id,fqdn:n.fqdn,scheme:n.scheme,behind_proxy:n.behind_proxy,memory:n.memory,memory_overallocate:n.memory_overallocate,disk:n.disk,disk_overallocate:n.disk_overallocate,upload_size:n.upload_size,daemon_listen:n.daemon_listen,daemon_sftp:n.daemon_sftp,maintenance_mode:!n.maintenance_mode}}),n.maintenance_mode?'Wartung beendet':'Wartung an'))adNode(n.id)},
   'ad-anew':()=>adAllocNew(),
   'ad-adel':async b=>{const n=S.ad.nd.n;if(await act(()=>aapi('DELETE','/nodes/'+n.id+'/allocations/'+b.dataset.i),'Port gelöscht'))adNode(n.id)},
@@ -3797,6 +3835,7 @@ Object.assign(H,{
   'hpm-re':()=>{S.hpm.i=null;S.hpm.err=null;drawHpm();hpmLoad()},
   'hpm-tun':()=>hpmTun(),
   'hpm-up':()=>hpmUp(),
+  'hp-upd':()=>hpUpdateNow(),
   'hpm-cc':()=>{const i=S.hpm&&S.hpm.i;if(i)copyText(i.code)},
   'hpm-share':async()=>{const i=S.hpm&&S.hpm.i;if(!i)return;const l=i.link||(appBase()+'#hp='+i.code);try{if(navigator.share){await navigator.share({title:'Handy-Panel verbinden',url:l});return}}catch(e){if(e&&e.name==='AbortError')return}copyText(l)},
   'ad-new0':()=>{openAdmin();adNew()}
@@ -4334,13 +4373,13 @@ async function srvIdx(a,force){
   const ps=tbSrv.profiles().filter(p=>!k||p.id===k);if(!ps.length)throw Error('Es gibt noch keine Server-Verbindung. Der Nutzer richtet sie im Werkzeug „Server“ ein.');
   const l=[];
   for(const p of ps){try{(await tbSrv.servers(p.id)).forEach(s=>{const al=s.allocs&&(s.allocs.find(x=>x.is_default)||s.allocs[0]);
-      const ll=/lavalink/i.test(s.inv||'');l.push({pid:p.id,pn:p.name,admin:p.admin,hp:p.hp,id:s.id,name:s.name,state:s.suspended?'gesperrt':s.status?s.status:((s.res&&s.res.current_state)||'unbekannt'),ll,mc:!ll&&/java|\.jar\b/i.test(s.inv||s.image||''),port:al?(p.hp?'Port '+al.port:(al.ip_alias||al.ip)+':'+al.port):'',lim:s.limits||{}})})}
+      const e=s.egg||'',ll=/lavalink/i.test(e+' '+(s.inv||'')),mc=!ll&&!/java-programm/i.test(e)&&(/paper|purpur|vanilla|fabric|forge|velocity/i.test(e)||(!e&&/java|\.jar\b/i.test(s.inv||s.image||'')));l.push({pid:p.id,pn:p.name,admin:p.admin,hp:p.hp,id:s.id,name:s.name,egg:e,state:s.suspended?'gesperrt':s.status?s.status:((s.res&&s.res.current_state)||'unbekannt'),ll,mc,port:al?(p.hp?'Port '+al.port:(al.ip_alias||al.ip)+':'+al.port):'',lim:s.limits||{}})})}
     catch(e){l.push({pid:p.id,pn:p.name,admin:p.admin,err:fe(e)})}}
   SRVC={t:Date.now(),l,k};return l}
 function srvPick(l,q){q=String(q||'').trim().toLowerCase().replace(/^[\["„]+|[\]"“]+$/g,'');const ok=l.filter(x=>!x.err);
   if(!q)return ok.length===1?ok[0]:null;
   return ok.find(x=>x.id.toLowerCase()===q)||ok.find(x=>x.name.toLowerCase()===q)||ok.find(x=>x.name.toLowerCase().includes(q))||ok.find(x=>q.includes(x.name.toLowerCase()))||null}
-const srvLine=x=>x.err?`- Verbindung „${x.pn}“: nicht erreichbar (${x.err})`:`- „${x.name}“ [${x.id}] ${STN2[x.state]||x.state}${x.mc?' · Minecraft':x.ll?' · Lavalink':''}${x.port?' · '+x.port:''}`;
+const srvLine=x=>x.err?`- Verbindung „${x.pn}“: nicht erreichbar (${x.err})`:`- „${x.name}“ [${x.id}] ${STN2[x.state]||x.state}${x.egg?' · '+x.egg:x.mc?' · Minecraft':x.ll?' · Lavalink':''}${x.port?' · '+x.port:''}`;
 const srvConfirm=async(a,title,text)=>a.srvAsk===false||!!(await ask({title,desc:text,ok:'Erlauben',no:'Ablehnen'}));
 async function srvCreate(a,at,r){
   const ps=tbSrv.profiles().filter(p=>(!a.srvP||p.id===a.srvP)&&p.admin);if(!ps.length)return r(0,'Zum Erstellen braucht eine Verbindung einen Admin-Schlüssel (oder das Handy-Panel).','Kein Admin-Zugriff');
@@ -4353,16 +4392,16 @@ async function srvCreate(a,at,r){
   if(!eg)return r(0,'Keine Vorlage „'+type+'“. Vorhanden: '+eggs.map(e=>e.name).join(', '),'Vorlage nicht gefunden');
   const ed=(await A('GET','/nests/'+eg.nest+'/eggs/'+eg.id,{q:{include:'variables'}})).attributes,vars=L(ed.relationships&&ed.relationships.variables);
   const env={};vars.forEach(v=>{env[v.env_variable]=v.default_value==null?'':String(v.default_value);const o=at[v.env_variable.toLowerCase()];if(o!=null)env[v.env_variable]=String(o);if(at.version&&/^(MINECRAFT_VERSION|MC_VERSION|VERSION|LAVALINK_VERSION)$/.test(v.env_variable))env[v.env_variable]=String(at.version).trim()});
-  const eulaV=vars.find(v=>v.env_variable==='EULA'),mc=!!eulaV||/minecraft/i.test(eg.nn)||/paper|spigot|purpur|vanilla|fabric|forge|bukkit/i.test(eg.name);
+  const eulaV=vars.find(v=>v.env_variable==='EULA'||v.env_variable==='TS3_LICENSE'),licN=eulaV&&eulaV.env_variable==='TS3_LICENSE'?'TeamSpeak-Serverlizenz (teamspeak.com)':'Minecraft-EULA (aka.ms/MinecraftEULA)',mc=(!!eulaV&&eulaV.env_variable==='EULA')||/minecraft/i.test(eg.nn)&&!/velocity/i.test(eg.name)||/paper|spigot|purpur|vanilla|fabric|forge|bukkit/i.test(eg.name);
   const users=L(await A('GET','/users',{q:{per_page:100}})),user=users.find(u=>u.root_admin)||users[0];if(!user)return r(0,'Im Panel gibt es keinen Benutzer.','Kein Benutzer');
-  const wp=parseInt(at.port,10)||0;let alloc=null;for(const n of L(await A('GET','/nodes',{q:{per_page:100}}))){const all=L(await A('GET','/nodes/'+n.id+'/allocations',{q:{per_page:500}})).filter(x=>!x.assigned),mcp=x=>(x.port>=25565&&x.port<=25575)||x.port===19132,al=all.find(x=>x.port===wp)||(/lavalink/i.test(eg.name)&&all.find(x=>x.port>=2333&&x.port<=2340))||(mc?all.find(mcp):all.find(x=>!mcp(x)))||all[0];if(al){alloc=al;break}}
+  const wp=parseInt(at.port,10)||0;let alloc=null;for(const n of L(await A('GET','/nodes',{q:{per_page:100}}))){const all=L(await A('GET','/nodes/'+n.id+'/allocations',{q:{per_page:500}})).filter(x=>!x.assigned),mcp=x=>(x.port>=25565&&x.port<=25577)||x.port===19132,al=all.find(x=>x.port===wp)||(/lavalink/i.test(eg.name)&&all.find(x=>x.port>=2333&&x.port<=2340))||(/velocity/i.test(eg.name)&&(all.find(x=>x.port===25577)||all.find(mcp)))||(/teamspeak/i.test(eg.name)&&all.find(x=>x.port===9987))||(mc?all.find(mcp):all.find(x=>!mcp(x)))||all[0];if(al){alloc=al;break}}
   if(!alloc)return r(0,'Es ist kein Port mehr frei. Der Nutzer muss im Admin-Bereich (Nodes) Ports hinzufügen.','Kein freier Port');
   const mem=Math.max(128,Math.min(65536,parseInt(at.memory||at.ram,10)||2048));
   let ok=true,eula=false;
   if(mc||a.srvAsk!==false){const v=await ask({title:'KI möchte einen Server erstellen',desc:'Der Agent <b>'+esc(a.name)+'</b> möchte <b>„'+esc(name)+'“</b> anlegen: '+esc(eg.name)+', '+mem+' MB RAM, Port '+esc((alloc.alias||alloc.ip)+':'+alloc.port)+' (Verbindung „'+esc(p.name)+'“).',
-      fields:mc?[{id:'eula',type:'check',label:'Ich akzeptiere die Minecraft-EULA (aka.ms/MinecraftEULA) – sonst startet der Server nicht',value:false}]:[],ok:'Erstellen',no:'Ablehnen'});ok=!!v;eula=!!(v&&v.eula)}
+      fields:eulaV?[{id:'eula',type:'check',label:'Ich akzeptiere die '+licN+' – sonst startet der Server nicht',value:false}]:[],ok:'Erstellen',no:'Ablehnen'});ok=!!v;eula=!!(v&&v.eula)}
   if(!ok)return r(0,'Der Nutzer hat das abgelehnt.','Abgelehnt: Server erstellen');
-  if(eulaV)env.EULA=eula?'true':'false';
+  if(eulaV)env[eulaV.env_variable]=eula?'true':'false';
   const imgs=ed.docker_images?Object.values(ed.docker_images):[];
   const s=(await A('POST','/servers',{json:{name,description:'Erstellt von '+a.name,user:user.id,egg:eg.id,docker_image:imgs[0]||ed.docker_image,startup:ed.startup,environment:env,limits:{memory:mem,swap:0,disk:Math.max(1024,parseInt(at.disk,10)||10240),io:500,cpu:0},feature_limits:{databases:0,backups:1,allocations:1},allocation:{default:alloc.id},start_on_completion:true},timeout:60000})).attributes;
   if(mc&&eula&&!eulaV)(async()=>{for(let i=0;i<72;i++){await new Promise(z=>setTimeout(z,5000));try{const x=(await tbSrv.api(p.id,'GET','/servers/'+s.identifier)).attributes;if(!x.status){await tbSrv.api(p.id,'POST','/servers/'+s.identifier+'/files/write',{q:{file:'/eula.txt'},text:'eula=true\n'});return}}catch(e){}}})();
@@ -4399,9 +4438,9 @@ async function runSrv(a,c,sig){
       const i=f.lastIndexOf('/'),root=i>0?f.slice(0,i):'/';await A('POST','/files/delete',{json:{root,files:[f.slice(i+1)]}});return r(1,'✓ Gelöscht: '+f,'Gelöscht: '+f)}
     case 'plugin_search':case 'plugin_install':{
       if(!s.mc)return r(0,'„'+s.name+'“ ist kein Minecraft-Server.','Kein Minecraft-Server');
-      const info=await tbSrv.mcInfo(s.pid,s.id);
+      const info=await tbSrv.mcInfo(s.pid,s.id,s.egg);
       if(c.n==='plugin_search'){const q=(b||at.query||'').trim().slice(0,100),l3=await tbSrv.mrSearch(q,info,8);
-        return r(1,`${info.loader==='fabric'?'Mods':'Plugins'} auf Modrinth für „${s.name}“ (${info.loader||'?'}, Minecraft ${info.version||'?'}):\n`+(l3.map(x=>`- ${x.slug}: ${x.title} – ${x.desc.slice(0,90)} (↓ ${num(x.dl)})`).join('\n')||'Nichts gefunden.')+'\nInstallieren mit plugin_install und plugin="slug".','Plugins gesucht: '+q)}
+        return r(1,`${/fabric|forge/.test(info.loader||'')?'Mods':'Plugins'} auf Modrinth für „${s.name}“ (${info.loader||'?'}, Minecraft ${info.version||'?'}):\n`+(l3.map(x=>`- ${x.slug}: ${x.title} – ${x.desc.slice(0,90)} (↓ ${num(x.dl)})`).join('\n')||'Nichts gefunden.')+'\nInstallieren mit plugin_install und plugin="slug".','Plugins gesucht: '+q)}
       const pl=(at.plugin||at.slug||at.project||b||'').trim().toLowerCase();if(!pl)return r(0,'Bitte plugin="slug" angeben (aus plugin_search).','Kein Plugin angegeben');
       if(!await srvConfirm(a,'KI möchte ein Plugin installieren',who+'<b>'+esc(pl)+'</b> (von Modrinth) auf „'+esc(s.name)+'“ installieren.'))return r(0,'Der Nutzer hat das abgelehnt.','Abgelehnt: '+pl);
       const res=await tbSrv.mrInstall(s.pid,s.id,pl,info),okL=res.filter(x=>!x.error),er=res.filter(x=>x.error);
@@ -4426,7 +4465,7 @@ async function runSrv(a,c,sig){
       if(!key)return r(1,`Variablen von „${s.name}“:\n`+vars.map(v=>`- ${v.env_variable} = ${v.server_value!=null&&v.server_value!==''?v.server_value:v.default_value} (${v.name}${v.is_editable?'':', gesperrt'})`).join('\n'),'Variablen: '+s.name);
       if(a.srv!=='full')return r(0,'Du darfst Server nur ansehen.','Nur Lesezugriff');
       const v=vars.find(x=>x.env_variable===key);if(!v)return r(0,'Die Variable '+key+' gibt es nicht. Vorhanden: '+vars.map(x=>x.env_variable).join(', '),'Unbekannte Variable');
-      if(key==='EULA'&&/^true$/i.test(val)&&!(await ask({title:'Minecraft-EULA akzeptieren?',desc:'Der Agent <b>'+esc(a.name)+'</b> möchte für „'+esc(s.name)+'“ die Minecraft-EULA akzeptieren. Das darfst nur du: <a href="https://aka.ms/MinecraftEULA" target="_blank" rel="noopener">aka.ms/MinecraftEULA</a>',ok:'Ich akzeptiere',no:'Ablehnen'})))return r(0,'Der Nutzer hat die EULA nicht akzeptiert.','EULA abgelehnt');
+      if((key==='EULA'||key==='TS3_LICENSE')&&/^true$/i.test(val)&&!(await ask({title:(key==='EULA'?'Minecraft-EULA':'TeamSpeak-Lizenz')+' akzeptieren?',desc:'Der Agent <b>'+esc(a.name)+'</b> möchte für „'+esc(s.name)+'“ die '+(key==='EULA'?'Minecraft-EULA (<a href="https://aka.ms/MinecraftEULA" target="_blank" rel="noopener">aka.ms/MinecraftEULA</a>)':'TeamSpeak-Serverlizenz (teamspeak.com)')+' akzeptieren. Das darfst nur du.',ok:'Ich akzeptiere',no:'Ablehnen'})))return r(0,'Der Nutzer hat die Lizenz nicht akzeptiert.','Lizenz abgelehnt');
       await A('PUT','/startup/variable',{json:{key,value:val}});SRVC.t=0;
       return r(1,'✓ '+key+' = '+val+' auf „'+s.name+'“.'+(/VERSION/.test(key)?' Damit die neue Version geladen wird: server_reinstall.':' Gilt beim nächsten Start.'),'Variable: '+key)}
     case 'server_reinstall':{if(!await srvConfirm(a,'KI möchte „'+s.name+'“ neu installieren',who+'den Server neu installieren (die Server-Datei wird neu geladen, z. B. für eine andere Version). Er wird dabei gestoppt. Welt und Dateien bleiben in der Regel erhalten.'))return r(0,'Der Nutzer hat das abgelehnt.','Abgelehnt: neu installieren');
@@ -4483,7 +4522,7 @@ function srvPrompt(a){
 <tool name="server_write" server="ID" path="DATEI">INHALT</tool> – Datei schreiben (z. B. Plugin-Konfiguration)
 <tool name="server_delete_file" server="ID" path="DATEI"/> – Datei löschen
 <tool name="plugin_install" server="ID" plugin="SLUG"/> – Plugin/Mod installieren (slug aus plugin_search), danach neu starten
-<tool name="server_create" server="NAME" type="paper" version="1.21.4" memory="2048"/> – neuen Server erstellen (type: paper, vanilla, fabric, lavalink, node.js, python …; version optional, sonst neueste)
+<tool name="server_create" server="NAME" type="paper" version="1.21.4" memory="2048"/> – neuen Server erstellen (type: paper, purpur, vanilla, fabric, forge, neoforge, velocity, lavalink, discord-bot, webseite, teamspeak, node.js, python, java …; version optional, sonst neueste)
 <tool name="mc_settings" server="ID" max-players="10" white-list="true" motd="Text"/> – Minecraft-Einstellungen setzen (Schlüssel wie in server.properties, z. B. difficulty, gamemode, pvp, view-distance, level-seed)
 <tool name="server_variable" server="ID" key="MINECRAFT_VERSION" value="1.21.4"/> – Start-Variable setzen (danach bei Versionen server_reinstall)
 <tool name="server_reinstall" server="ID"/> – neu installieren (z. B. andere Version)
@@ -4992,7 +5031,7 @@ tool({id:'set',sys:1,icon:'sliders',title:'Einstellungen',desc:'Design, Textgrö
   <label>Standard-Verschlüsselung</label><select id="al">${Object.entries(ALGS).map(([k,v])=>`<option value="${k}"${k===SET.alg?' selected':''}>${v.n}</option>`).join('')}</select>
   <label>Daten</label><button id="rs" class="btn">${ico('trash',18)}Alle Daten zurücksetzen</button>
   <p class="st">Löscht Notizen, eigene Stile, Server-Verbindungen (samt API-Schlüsseln), die Daten der AI Agents (Chats, Arbeitsbereiche, Wissen), Chat-Kontakte samt Verlauf und Einstellungen von diesem Gerät. Erstelle vorher ein Backup. Heruntergeladene KI-Modelle bleiben erhalten – die löschst du unter AI Agents → Modelle.</p>
-  <p class="foot">Toolbox · Version 1.9</p>`;
+  <p class="foot">Toolbox · Version 1.10</p>`;
   el.onclick=e=>{const b=e.target.closest('button');if(!b)return;const g=b.closest('.seg');
     if(g){const k=g.dataset.k;SET[k]=k==='z'?+b.dataset.v:b.dataset.v;g.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));saveSet();if(k==='nt'&&SET.nt==='on')askNt(g)}
     else if(b.dataset.ac!=null){SET.ac=+b.dataset.ac;el.querySelectorAll('.sw').forEach(x=>x.classList.toggle('on',x===b));saveSet()}
