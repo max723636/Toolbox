@@ -27,7 +27,7 @@ const net = require('net');
 const { spawn, execFile } = require('child_process');
 const { StringDecoder } = require('string_decoder');
 
-const VERSION = '1.3.0';
+const VERSION = '1.4.0';
 const ARGS = process.argv.slice(2);
 const WITHVAL = ['--port', '--dir', '--wrap', '--app'];
 const POS = ARGS.filter((x, i) => !x.startsWith('--') && !WITHVAL.includes(ARGS[i - 1])); // Wörter, die keine Optionen sind
@@ -56,9 +56,11 @@ if (!C.key || (opt('neuer-schluessel') && !CMD && !WRAP)) C.key = 'tbp_' + rid(2
 if (opt('app') && opt('app') !== true && !WRAP) C.app = String(opt('app')).replace(/\/*$/, '/');
 if (opt('fernzugriff') && !WRAP) C.tunnel = true;
 if (!C.user) C.user = { id: 1, uuid: crypto.randomUUID(), username: 'handy', email: 'handy@localhost', first_name: 'Handy', last_name: 'Panel', language: 'de', root_admin: true, '2fa': false, created_at: now(), updated_at: now() };
-if (!C.allocs.length) { for (const p of [25565, 25566, 25567, 25568, 25569, 25570, 19132, 2333, 2334, 3000, 3001, 3002, 8081, 8082]) C.allocs.push({ id: ++C.seq.alloc, ip: '0.0.0.0', alias: null, port: p, notes: null }) }
+if (!C.allocs.length) { for (const p of [25565, 25566, 25567, 25568, 25569, 25570, 25577, 19132, 2333, 2334, 3000, 3001, 3002, 8081, 8082, 9987]) C.allocs.push({ id: ++C.seq.alloc, ip: '0.0.0.0', alias: null, port: p, notes: null }) }
 if (!WRAP && !C.allocs.some(a => a.port === 2333)) C.allocs.push({ id: ++C.seq.alloc, ip: '0.0.0.0', alias: null, port: 2333, notes: null }); // Lavalink (ab 1.3)
 if (!C.upnp) C.upnp = []; // Portfreigaben im Router (UPnP), die das Panel aktuell hält
+// Kein einziger Port mehr frei? Dann die Standard-Ports ergänzen (sonst lässt sich kein Server anlegen)
+if (!WRAP && !C.allocs.some(a => !C.servers.some(s => s.allocation === a.id || (s.extra || []).includes(a.id)))) { for (const p of [25565, 25566, 25567, 25568, 25569, 25570, 25577, 19132, 2333, 2334, 3000, 3001, 3002, 8081, 8082, 9987]) if (!C.allocs.some(a => a.port === p)) C.allocs.push({ id: ++C.seq.alloc, ip: '0.0.0.0', alias: null, port: p, notes: null }) }
 let saveT = null;
 function save(now_) {
   clearTimeout(saveT);
@@ -73,13 +75,30 @@ const MC_VARS = (dflt) => [
   { name: 'Server-Datei', env: 'SERVER_JARFILE', def: dflt || 'server.jar', desc: 'Name der .jar-Datei', rules: 'required|string|max:60' },
   { name: 'Minecraft-EULA akzeptieren', env: 'EULA', def: 'false', desc: 'true = du akzeptierst die Minecraft-EULA (aka.ms/MinecraftEULA). Ohne „true“ startet der Server nicht.', rules: 'required|in:true,false' }];
 const JAVA_START = 'java -Xms128M -Xmx{{SERVER_MEMORY}}M -jar {{SERVER_JARFILE}} nogui';
-const NESTS = [{ id: 1, name: 'Minecraft', description: 'Minecraft: Java Edition (braucht Java 21 oder neuer)', eggs: [1, 2, 3] }, { id: 2, name: 'Programme', description: 'Eigene Programme, Bots und Web-Apps', eggs: [4, 5, 6] }, { id: 3, name: 'Discord & Musik', description: 'Musik-Server für Discord-Bots', eggs: [7] }];
+const MODDED_START = 'java -Xms128M -Xmx{{SERVER_MEMORY}}M @start_args.txt nogui'; // Forge/NeoForge: Startparameter aus dem Installer
+const GIT_VARS = () => [
+  { name: 'Git-Adresse (optional)', env: 'GIT_ADDRESS', def: '', desc: 'Lädt dein Projekt bei der Installation aus GitHub/GitLab, z. B. https://github.com/name/bot.git', rules: 'nullable|string|max:300' },
+  { name: 'Git-Branch (optional)', env: 'GIT_BRANCH', def: '', desc: 'Leer = Standard-Branch', rules: 'nullable|string|max:100' },
+  { name: 'Automatisch aktualisieren', env: 'AUTO_UPDATE', def: 'false', desc: 'true = vor jedem Start „git pull“ und Pakete aktualisieren', rules: 'required|in:true,false' }];
+const TOKEN_VAR = { name: 'Bot-Token', env: 'DISCORD_TOKEN', def: '', desc: 'Token aus dem Discord Developer Portal (Bot → Reset Token). Gib ihn niemandem!', rules: 'nullable|string|max:200' };
+// Python: nimmt die eigene Umgebung (.venv), falls vorhanden – sonst das System-Python
+const PY_RUN = f => WIN ? 'if exist .venv\\Scripts\\python.exe (.venv\\Scripts\\python.exe ' + f + ') else (python ' + f + ')' : 'if [ -x .venv/bin/python ]; then exec .venv/bin/python ' + f + '; else exec ' + PY + ' ' + f + '; fi';
+const NESTS = [{ id: 1, name: 'Minecraft', description: 'Minecraft: Java Edition – Server, Mods und Proxy', eggs: [1, 8, 2, 3, 9, 10, 11] }, { id: 2, name: 'Programme', description: 'Eigene Programme, Bots und Webseiten', eggs: [4, 5, 12, 13, 6] }, { id: 3, name: 'Discord & Musik', description: 'Discord-Bots und Musik-Server', eggs: [14, 15, 7] }, { id: 4, name: 'Voice', description: 'Sprach-Server', eggs: [16] }];
 const EGGS = {
-  1: { nest: 1, name: 'Paper', description: 'Schneller Minecraft-Server mit Plugins (empfohlen).', image: 'termux/java', startup: JAVA_START, stop: 'stop', done: /\)! For help, type/, vars: MC_VARS(), install: 'paper' },
-  2: { nest: 1, name: 'Vanilla', description: 'Original-Minecraft-Server von Mojang.', image: 'termux/java', startup: JAVA_START, stop: 'stop', done: /\)! For help, type/, vars: MC_VARS(), install: 'vanilla' },
-  3: { nest: 1, name: 'Fabric', description: 'Minecraft mit Fabric-Mods.', image: 'termux/java', startup: JAVA_START, stop: 'stop', done: /\)! For help, type/, vars: MC_VARS(), install: 'fabric' },
-  4: { nest: 2, name: 'Node.js', description: 'JavaScript-Programm oder Discord-Bot (Node.js).', image: 'termux/node', startup: 'node {{MAIN_FILE}}', stop: '^C', vars: [{ name: 'Startdatei', env: 'MAIN_FILE', def: 'index.js', desc: 'Datei, die gestartet wird', rules: 'required|string|max:100' }], install: 'node' },
-  5: { nest: 2, name: 'Python', description: 'Python-Programm oder Bot.', image: 'termux/python', startup: PY + ' {{MAIN_FILE}}', stop: '^C', vars: [{ name: 'Startdatei', env: 'MAIN_FILE', def: 'main.py', desc: 'Datei, die gestartet wird', rules: 'required|string|max:100' }], install: 'python' },
+  1: { nest: 1, mc: 1, name: 'Paper', description: 'Schneller Minecraft-Server mit Plugins (empfohlen).', image: 'termux/java', startup: JAVA_START, stop: 'stop', done: /\)! For help, type/, vars: MC_VARS(), install: 'paper' },
+  2: { nest: 1, mc: 1, name: 'Vanilla', description: 'Original-Minecraft-Server von Mojang.', image: 'termux/java', startup: JAVA_START, stop: 'stop', done: /\)! For help, type/, vars: MC_VARS(), install: 'vanilla' },
+  3: { nest: 1, mc: 1, name: 'Fabric', description: 'Minecraft mit Fabric-Mods.', image: 'termux/java', startup: JAVA_START, stop: 'stop', done: /\)! For help, type/, vars: MC_VARS(), install: 'fabric' },
+  8: { nest: 1, mc: 1, name: 'Purpur', description: 'Paper mit vielen Extra-Einstellungen, läuft mit allen Paper-Plugins.', image: 'termux/java', startup: JAVA_START, stop: 'stop', done: /\)! For help, type/, vars: MC_VARS(), install: 'purpur' },
+  9: { nest: 1, mc: 1, name: 'Forge', description: 'Minecraft mit Forge-Mods (Modpacks).', image: 'termux/java', startup: MODDED_START, stop: 'stop', done: /\)! For help, type/, vars: MC_VARS().filter(v => v.env !== 'SERVER_JARFILE').concat([{ name: 'Forge-Version', env: 'FORGE_VERSION', def: 'latest', desc: '„latest“ = empfohlene Version für deine Minecraft-Version', rules: 'required|string|max:30' }]), install: 'forge' },
+  10: { nest: 1, mc: 1, name: 'NeoForge', description: 'Minecraft mit NeoForge-Mods (Nachfolger von Forge).', image: 'termux/java', startup: MODDED_START, stop: 'stop', done: /\)! For help, type/, vars: MC_VARS().filter(v => v.env !== 'SERVER_JARFILE').concat([{ name: 'NeoForge-Version', env: 'NEOFORGE_VERSION', def: 'latest', desc: '„latest“ = neueste Version für deine Minecraft-Version', rules: 'required|string|max:30' }]), install: 'neoforge' },
+  11: { nest: 1, name: 'Velocity (Proxy)', description: 'Verbindet mehrere Minecraft-Server zu einem Netzwerk (Lobby, Survival …).', image: 'termux/java', startup: 'java -Xms128M -Xmx{{SERVER_MEMORY}}M -XX:+UseG1GC -jar {{SERVER_JARFILE}} --port {{SERVER_PORT}}', stop: 'end', done: /Done \(/, vars: [{ name: 'Velocity-Version', env: 'VELOCITY_VERSION', def: 'latest', desc: '„latest“ = neueste Version, die mit deinem Java läuft', rules: 'required|string|max:30' }, { name: 'Server-Datei', env: 'SERVER_JARFILE', def: 'velocity.jar', desc: 'Name der .jar-Datei', rules: 'required|string|max:60' }], install: 'velocity' },
+  4: { nest: 2, name: 'Node.js', description: 'JavaScript-Programm oder Bot (Node.js) – optional aus Git.', image: 'termux/node', startup: 'node {{MAIN_FILE}}', stop: '^C', vars: [{ name: 'Startdatei', env: 'MAIN_FILE', def: 'index.js', desc: 'Datei, die gestartet wird', rules: 'required|string|max:100' }].concat(GIT_VARS()), install: 'node' },
+  5: { nest: 2, name: 'Python', description: 'Python-Programm oder Bot – optional aus Git.', image: 'termux/python', startup: PY_RUN('{{MAIN_FILE}}'), stop: '^C', vars: [{ name: 'Startdatei', env: 'MAIN_FILE', def: 'main.py', desc: 'Datei, die gestartet wird', rules: 'required|string|max:100' }].concat(GIT_VARS()), install: 'python' },
+  12: { nest: 2, name: 'Java-Programm (.jar)', description: 'Startet eine beliebige .jar-Datei (z. B. einen Java-Bot).', image: 'termux/java', startup: 'java -Xms64M -Xmx{{SERVER_MEMORY}}M -jar {{JARFILE}}', stop: '^C', vars: [{ name: 'Jar-Datei', env: 'JARFILE', def: 'app.jar', desc: 'Name der .jar-Datei im Server-Ordner', rules: 'required|string|max:100' }, { name: 'Download-Adresse (optional)', env: 'JAR_URL', def: '', desc: 'Wird bei der Installation geladen, z. B. von GitHub-Releases', rules: 'nullable|string|max:300' }], install: 'jar' },
+  13: { nest: 2, name: 'Webseite', description: 'Einfache Webseite: alles im Ordner „public“ wird ausgeliefert.', image: 'termux/node', startup: 'node server.js', stop: '^C', done: /Webseite läuft/, vars: [], install: 'web' },
+  14: { nest: 3, name: 'Discord-Bot (JavaScript)', description: 'Fertiger Discord-Bot mit discord.js und /ping – zum Weiterbauen.', image: 'termux/node', startup: 'node index.js', stop: '^C', done: /Bot online/, vars: [TOKEN_VAR].concat(GIT_VARS()), install: 'djs' },
+  15: { nest: 3, name: 'Discord-Bot (Python)', description: 'Fertiger Discord-Bot mit discord.py und /ping – zum Weiterbauen.', image: 'termux/python', startup: PY_RUN('main.py'), stop: '^C', done: /Bot online/, vars: [TOKEN_VAR].concat(GIT_VARS()), install: 'dpy' },
+  16: { nest: 4, name: 'TeamSpeak 3', description: 'Sprach-Server (nur PC/Linux mit Intel/AMD, nicht auf dem Handy).', image: 'termux/shell', startup: WIN ? 'ts3server.exe default_voice_port={{SERVER_PORT}} query_port={{QUERY_PORT}} filetransfer_port={{FILE_PORT}}' : (MAC ? 'DYLD_LIBRARY_PATH=. ' : 'LD_LIBRARY_PATH=. ') + './ts3server default_voice_port={{SERVER_PORT}} query_port={{QUERY_PORT}} filetransfer_port={{FILE_PORT}}', stop: '^C', done: /listening on/i, vars: [{ name: 'Query-Port', env: 'QUERY_PORT', def: '10011', desc: 'Port für ServerQuery (Verwaltung)', rules: 'required|integer' }, { name: 'Dateiübertragungs-Port', env: 'FILE_PORT', def: '30033', desc: 'Port für Datei-Uploads im TeamSpeak', rules: 'required|integer' }, { name: 'TeamSpeak-Lizenz akzeptieren', env: 'TS3_LICENSE', def: 'false', desc: 'true = du akzeptierst die TeamSpeak-Serverlizenz (teamspeak.com). Ohne „true“ startet der Server nicht.', rules: 'required|in:true,false' }], install: 'ts3' },
   7: { nest: 3, name: 'Lavalink', description: 'Musik-Server für Discord-Bots (Lavalink 4 mit YouTube-Plugin). Braucht Java 17 oder neuer.', image: 'termux/java', startup: 'java -Xmx{{SERVER_MEMORY}}M -jar Lavalink.jar', stop: '^C', done: /Lavalink is ready to accept connections|Started Launcher\.Companion|Started LauncherKt/, vars: [
     { name: 'Passwort', env: 'LAVALINK_PASSWORD', def: '', desc: 'Passwort, mit dem sich dein Bot verbindet. Leer = wird bei der Installation erzeugt.', rules: 'nullable|string|max:100' },
     { name: 'Lavalink-Version', env: 'LAVALINK_VERSION', def: 'latest', desc: '„latest“ = neueste Version, oder z. B. 4.2.2', rules: 'required|string|max:20' },
@@ -118,7 +137,7 @@ function envOf(s) {
 /* ---------- Prozesse starten/stoppen ---------- */
 async function prepare(s) {
   const e = EGGS[s.egg], d = dirOf(s), env = envOf(s);
-  if (e && e.nest === 1) {
+  if (e && e.mc) {
     await fsp.writeFile(path.join(d, 'eula.txt'), 'eula=' + (String(env.EULA).toLowerCase() === 'true') + '\n');
     const pf = path.join(d, 'server.properties'); let t = '';
     try { t = await fsp.readFile(pf, 'utf8') } catch (x) { }
@@ -127,6 +146,10 @@ async function prepare(s) {
     await fsp.writeFile(pf, t);
     if (String(env.EULA).toLowerCase() !== 'true') { out(s, 'Die Minecraft-EULA ist nicht akzeptiert. Setze die Variable „Minecraft-EULA akzeptieren“ (EULA) unter Startup auf true.', 'error'); return false }
   }
+  if (s.egg === 16 && String(env.TS3_LICENSE).toLowerCase() !== 'true') { out(s, 'Die TeamSpeak-Lizenz ist nicht akzeptiert. Setze unter Startup „TeamSpeak-Lizenz akzeptieren“ auf true.', 'error'); return false }
+  if (s.egg === 16) await fsp.writeFile(path.join(d, '.ts3server_license_accepted'), 'license_accepted=1\n');
+  if (e && e.vars.some(v => v.env === 'AUTO_UPDATE') && String(env.AUTO_UPDATE) === 'true' && fs.existsSync(path.join(d, '.git'))) { // vor dem Start aktualisieren
+    const log = l => out(s, l, 'daemon'); log('Automatisch aktualisieren: git pull …'); await run('git', ['pull', '--ff-only'], d, log); await deps(d, log) }
   if (s.egg === 7) { llPass(s); if (!fs.existsSync(path.join(d, 'application.yml'))) await fsp.writeFile(path.join(d, 'application.yml'), llYml(s, envOf(s), await llPluginVer().catch(() => null))); if (!fs.existsSync(path.join(d, 'Lavalink.jar'))) { out(s, 'Lavalink.jar fehlt – bitte unter Einstellungen „Neu installieren“.', 'error'); return false } }
   return true;
 }
@@ -315,12 +338,58 @@ async function download(u, file, log) {
 }
 function run(cmd, args, cwd, log) { return new Promise(res => { let p; try { p = spawn(cmd, args, { cwd, env: process.env, shell: WIN, windowsHide: true }) } catch (e) { log('Befehl nicht verfügbar: ' + cmd); return res(127) } const f = ch => ch.toString().split(/\r?\n/).filter(Boolean).forEach(l => log(l)); p.stdout.on('data', f); p.stderr.on('data', f); p.on('error', () => { log('Befehl nicht gefunden: ' + cmd); res(127) }); p.on('exit', c => res(c)) }) }
 function javaMajor() { return new Promise(res => execFile('java', ['-version'], (err, so, se) => { if (err && !se) return res(0); const m = /version "(\d+)(?:\.(\d+))?/.exec(String(se) + String(so)); if (!m) return res(0); res(+m[1] === 1 ? +m[2] : +m[1]) })) }
-async function pickPaper(want, jv, log) {
-  const pr = await getJSON('https://fill.papermc.io/v3/projects/paper');
-  const all = Object.values(pr.versions || {}).flat().filter(v => !/-(rc|pre)/.test(v));
+// Neueste Version eines PaperMC-Projekts (paper, velocity …), die mit dem vorhandenen Java läuft
+async function pickFill(project, want, jv) {
+  const pr = await getJSON('https://fill.papermc.io/v3/projects/' + project);
+  const all = Object.values(pr.versions || {}).flat().filter(v => !/-(rc|pre)|snapshot/i.test(v));
   if (want && want !== 'latest') return want;
-  for (const v of all) { try { const j = await getJSON('https://fill.papermc.io/v3/projects/paper/versions/' + v); const min = j.version && j.version.java && j.version.java.version && j.version.java.version.minimum || 17; if (!jv || min <= jv) return v; } catch (e) { } }
+  for (const v of all) { try { const j = await getJSON('https://fill.papermc.io/v3/projects/' + project + '/versions/' + v); const min = j.version && j.version.java && j.version.java.version && j.version.java.version.minimum || 17; if (!jv || min <= jv) return v; } catch (e) { } }
   return all[0];
+}
+const pickPaper = (want, jv) => pickFill('paper', want, jv);
+async function fillJar(project, v, file, log) { const b = await getJSON('https://fill.papermc.io/v3/projects/' + project + '/versions/' + v + '/builds/latest'); const dl = b.downloads && (b.downloads['server:default'] || Object.values(b.downloads)[0]); if (!dl) throw Error('Kein Download für ' + project + ' ' + v); log('Lade ' + dl.name + ' …'); await download(dl.url, file, log) }
+const jlog = async log => { const jv = await javaMajor(); log(jv ? 'Gefundenes Java: ' + jv : 'Java ist (noch) nicht installiert. ' + HINT()); return jv };
+// Neueste Minecraft-Version (oder die gewünschte), die zu Java passt; ok(id) = gibt es sie für diesen Loader?
+async function mcPick(want, jv, ok) {
+  const man = await getJSON('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json'), rel = man.versions.filter(v => v.type === 'release');
+  if (want && want !== 'latest') { if (!rel.some(v => v.id === want)) throw Error('Minecraft ' + want + ' gibt es nicht.'); if (ok && !(await ok(want))) throw Error('Für Minecraft ' + want + ' gibt es diese Server-Art nicht.'); return want }
+  for (const v of rel.slice(0, 40)) { if (ok && !(await ok(v.id))) continue; const j = await getJSON(v.url), need = (j.javaVersion && j.javaVersion.majorVersion) || 8; if (need <= (jv || 21)) return v.id }
+  throw Error('Keine passende Minecraft-Version für Java ' + (jv || '?') + ' gefunden.');
+}
+const vnum = (a, b) => { const x = String(a).split('.').map(n => parseInt(n, 10) || 0), y = String(b).split('.').map(n => parseInt(n, 10) || 0); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0) } return 0 };
+// Forge/NeoForge: Installer ausführen und die Startparameter nach start_args.txt legen
+async function modInstaller(d, url, libdir, log) {
+  const inst = path.join(d, 'installer.jar'); await download(url, inst, log);
+  log('Installiere – lädt Minecraft und Bibliotheken, das dauert ein paar Minuten …');
+  let n = 0; const code = await run('java', ['-jar', 'installer.jar', '--installServer'], d, l => { if (++n <= 3 || n % 150 === 0 || /error|fail|exception|success/i.test(l)) log(l) });
+  for (const f of ['installer.jar', 'installer.jar.log']) { try { fs.unlinkSync(path.join(d, f)) } catch (e) { } }
+  if (code !== 0) throw Error('Der Installer ist fehlgeschlagen (Code ' + code + '). Passt die Java-Version?');
+  const af = path.join(d, libdir, WIN ? 'win_args.txt' : 'unix_args.txt');
+  if (fs.existsSync(af)) await fsp.copyFile(af, path.join(d, 'start_args.txt'));
+  else { const j = fs.readdirSync(d).find(f => /^(forge|neoforge)-.*\.jar$/i.test(f) && !/installer/i.test(f)); if (!j) throw Error('Startdatei nach der Installation nicht gefunden.'); await fsp.writeFile(path.join(d, 'start_args.txt'), '-jar ' + j + '\n') }
+  for (const f of ['run.sh', 'run.bat']) { try { fs.unlinkSync(path.join(d, f)) } catch (e) { } }
+  log('Fertig: Startparameter liegen in start_args.txt.');
+}
+// Git: Projekt holen oder aktualisieren
+async function gitGet(d, env, log) {
+  const url = String(env.GIT_ADDRESS || '').trim(); if (!url) return false;
+  if (!/^(https?:\/\/|git@)[^\s]+$/.test(url)) { log('Ungültige Git-Adresse: ' + url); return false }
+  if (fs.existsSync(path.join(d, '.git'))) { log('git pull …'); await run('git', ['pull', '--ff-only'], d, log); return true }
+  const tmp = path.join(d, '.hp', 'git-neu'); await fsp.rm(tmp, { recursive: true, force: true }); await fsp.mkdir(path.dirname(tmp), { recursive: true });
+  log('git clone ' + url + ' …'); const a = ['clone', '--depth', '50']; if (String(env.GIT_BRANCH || '').trim()) a.push('--branch', String(env.GIT_BRANCH).trim()); a.push(url, tmp);
+  const c = await run('git', a, d, log); if (c !== 0) { log(c === 127 ? 'Git fehlt. ' + (TERMUX ? 'pkg install git' : WIN ? 'git-scm.com installieren' : 'sudo apt install git') : 'git clone ist fehlgeschlagen.'); return false }
+  for (const f of await fsp.readdir(tmp)) { const to = path.join(d, f); await fsp.rm(to, { recursive: true, force: true }); await fsp.rename(path.join(tmp, f), to) }
+  await fsp.rm(tmp, { recursive: true, force: true }); return true;
+}
+// Pakete installieren: npm (package.json) bzw. pip in eine eigene Python-Umgebung (.venv)
+async function deps(d, log) {
+  if (fs.existsSync(path.join(d, 'package.json'))) { log('npm install …'); await run('npm', ['install', '--omit=dev', '--no-audit', '--no-fund'], d, log) }
+  if (fs.existsSync(path.join(d, 'requirements.txt'))) {
+    const vpy = path.join(d, '.venv', WIN ? 'Scripts' : 'bin', WIN ? 'python.exe' : 'python');
+    if (!fs.existsSync(vpy)) { log('Lege Python-Umgebung (.venv) an …'); await run(PY, ['-m', 'venv', '.venv'], d, log) }
+    if (fs.existsSync(vpy)) { log('pip install -r requirements.txt …'); await run(vpy, ['-m', 'pip', 'install', '--disable-pip-version-check', '-r', 'requirements.txt'], d, log) }
+    else { log('Ohne .venv: pip install --user …' + (TERMUX ? '' : ' (Tipp: sudo apt install python3-venv)')); await run(PY, ['-m', 'pip', 'install', '--user', '-r', 'requirements.txt'], d, log) }
+  }
 }
 const INST = {
   async paper(s, d, env, log) {
@@ -360,14 +429,120 @@ const INST = {
     if (TERMUX) log('Hinweis: Auf Android fehlen Lavalink manchmal Audio-Bibliotheken. Klappt die Wiedergabe nicht, läuft Lavalink zuverlässig auf einem PC/Linux-Server.');
   },
   async node(s, d, env, log) {
+    await gitGet(d, env, log);
     const f = path.join(d, env.MAIN_FILE || 'index.js');
     if (!fs.existsSync(f)) { await fsp.writeFile(f, "// Beispiel: kleine Webseite auf dem Port des Servers\nconst http = require('http');\nconst port = process.env.SERVER_PORT || 3000;\nhttp.createServer((q, r) => r.end('Hallo vom Handy-Panel!')).listen(port, () => console.log('Läuft auf Port ' + port));\nprocess.stdin.on('data', d => console.log('Befehl erhalten: ' + d.toString().trim()));\n"); log('Beispiel-Datei ' + path.basename(f) + ' angelegt.') }
-    if (fs.existsSync(path.join(d, 'package.json'))) { log('npm install …'); await run('npm', ['install', '--omit=dev'], d, log) }
+    await deps(d, log);
   },
   async python(s, d, env, log) {
+    await gitGet(d, env, log);
     const f = path.join(d, env.MAIN_FILE || 'main.py');
     if (!fs.existsSync(f)) { await fsp.writeFile(f, "# Beispiel: kleine Webseite auf dem Port des Servers\nimport http.server, os\nport = int(os.environ.get('SERVER_PORT', '3000'))\nprint('Läuft auf Port', port, flush=True)\nhttp.server.ThreadingHTTPServer(('0.0.0.0', port), http.server.SimpleHTTPRequestHandler).serve_forever()\n"); log('Beispiel-Datei ' + path.basename(f) + ' angelegt.') }
-    if (fs.existsSync(path.join(d, 'requirements.txt'))) { log('pip install -r requirements.txt …'); await run(PY, ['-m', 'pip', 'install', '-r', 'requirements.txt'], d, log) }
+    await deps(d, log);
+  },
+  async purpur(s, d, env, log) {
+    const jv = await jlog(log), pv = (await getJSON('https://api.purpurmc.org/v2/purpur')).versions || [];
+    const v = await mcPick(env.MINECRAFT_VERSION, jv, async id => pv.includes(id)); log('Minecraft-Version: ' + v);
+    await download('https://api.purpurmc.org/v2/purpur/' + v + '/latest/download', path.join(d, env.SERVER_JARFILE || 'server.jar'), log);
+  },
+  async forge(s, d, env, log) {
+    const jv = await jlog(log), pr = (await getJSON('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json')).promos || {};
+    const mc = await mcPick(env.MINECRAFT_VERSION, jv, async id => !!(pr[id + '-recommended'] || pr[id + '-latest']));
+    const fv = env.FORGE_VERSION && env.FORGE_VERSION !== 'latest' ? env.FORGE_VERSION : pr[mc + '-recommended'] || pr[mc + '-latest'], full = mc + '-' + fv;
+    log('Minecraft ' + mc + ' mit Forge ' + fv);
+    await modInstaller(d, 'https://maven.minecraftforge.net/net/minecraftforge/forge/' + full + '/forge-' + full + '-installer.jar', 'libraries/net/minecraftforge/forge/' + full, log);
+  },
+  async neoforge(s, d, env, log) {
+    const jv = await jlog(log), x = await (await fetch('https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml', { signal: AbortSignal.timeout(20000) })).text();
+    const all = [...x.matchAll(/<version>([^<]+)<\/version>/g)].map(m => m[1]).filter(v => !/beta|alpha|rc/i.test(v));
+    const pre = mc => { const p = mc.split('.'); return mc.startsWith('1.') ? p[1] + '.' + (p[2] || 0) + '.' : p[0] + '.' + p[1] + '.' + (p[2] || 0) + '.' };
+    const mc = await mcPick(env.MINECRAFT_VERSION, jv, async id => all.some(v => v.startsWith(pre(id))));
+    const nv = env.NEOFORGE_VERSION && env.NEOFORGE_VERSION !== 'latest' ? env.NEOFORGE_VERSION : all.filter(v => v.startsWith(pre(mc))).sort(vnum).pop();
+    log('Minecraft ' + mc + ' mit NeoForge ' + nv);
+    await modInstaller(d, 'https://maven.neoforged.net/releases/net/neoforged/neoforge/' + nv + '/neoforge-' + nv + '-installer.jar', 'libraries/net/neoforged/neoforge/' + nv, log);
+  },
+  async velocity(s, d, env, log) {
+    const jv = await jlog(log), v = await pickFill('velocity', env.VELOCITY_VERSION, jv || 21); log('Velocity ' + v);
+    await fillJar('velocity', v, path.join(d, env.SERVER_JARFILE || 'velocity.jar'), log);
+    log('Tipp: In velocity.toml die Server eintragen (z. B. lobby = "127.0.0.1:25566") und bei den Paper-Servern „online-mode=false“ plus Velocity-Weiterleitung einstellen.');
+  },
+  async jar(s, d, env, log) {
+    const u = String(env.JAR_URL || '').trim();
+    if (/^https?:\/\//.test(u)) { log('Lade ' + u + ' …'); await download(u, path.join(d, env.JARFILE || 'app.jar'), log) }
+    else log('Lade deine .jar-Datei im Reiter „Dateien“ hoch und nenne sie ' + (env.JARFILE || 'app.jar') + ' (oder ändere den Namen unter Startup).');
+    await jlog(log);
+  },
+  async web(s, d, env, log) {
+    await fsp.mkdir(path.join(d, 'public'), { recursive: true });
+    const sv = path.join(d, 'server.js'), ix = path.join(d, 'public', 'index.html');
+    if (!fs.existsSync(sv)) await fsp.writeFile(sv, `// Kleine Webseite: liefert alles aus dem Ordner „public“ aus (ohne Zusatzpakete)
+const http = require('http'), fs = require('fs'), path = require('path');
+const root = path.join(__dirname, 'public'), port = +process.env.SERVER_PORT || 3000;
+const types = { html: 'text/html; charset=utf-8', css: 'text/css', js: 'text/javascript', json: 'application/json', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', svg: 'image/svg+xml', ico: 'image/x-icon', webp: 'image/webp', txt: 'text/plain; charset=utf-8', mp4: 'video/mp4', mp3: 'audio/mpeg', woff2: 'font/woff2', pdf: 'application/pdf' };
+http.createServer((req, res) => {
+  let p = decodeURIComponent(new URL(req.url, 'http://x').pathname); if (p.endsWith('/')) p += 'index.html';
+  const f = path.join(root, path.normalize(p).replace(/^([.][.][\\\\/])+/, ''));
+  if (!f.startsWith(root)) { res.writeHead(403); return res.end('Verboten') }
+  fs.stat(f, (e, st) => { if (e || !st.isFile()) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('Nicht gefunden') }
+    res.writeHead(200, { 'Content-Type': types[path.extname(f).slice(1).toLowerCase()] || 'application/octet-stream', 'Content-Length': st.size }); fs.createReadStream(f).pipe(res) });
+}).listen(port, () => console.log('Webseite läuft auf Port ' + port));
+`);
+    if (!fs.existsSync(ix)) await fsp.writeFile(ix, '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Meine Webseite</title><style>body{font:18px/1.6 system-ui,sans-serif;max-width:640px;margin:10vh auto;padding:0 20px;color:#1f2937}h1{color:#4f46e5}</style></head><body><h1>Es läuft! 🎉</h1><p>Diese Seite liegt im Ordner <b>public</b> deines Servers. Bearbeite <code>index.html</code> im Reiter „Dateien“ oder lade eigene Dateien hoch.</p></body></html>\n');
+    log('Webseite angelegt: Ordner „public“ (index.html). Adresse siehe Reiter „Netzwerk“.');
+  },
+  async djs(s, d, env, log) {
+    const got = await gitGet(d, env, log);
+    if (!got && !fs.existsSync(path.join(d, 'index.js'))) {
+      await fsp.writeFile(path.join(d, 'package.json'), JSON.stringify({ name: 'discord-bot', version: '1.0.0', private: true, main: 'index.js', dependencies: { 'discord.js': '^14.16.0' } }, null, 2) + '\n');
+      await fsp.writeFile(path.join(d, 'index.js'), `// Discord-Bot mit discord.js – Token unter Startup → „Bot-Token“ eintragen
+const { Client, GatewayIntentBits, Events, SlashCommandBuilder } = require('discord.js');
+const token = process.env.DISCORD_TOKEN;
+if (!token) { console.log('Kein Token: Trage unter Startup die Variable „Bot-Token“ ein (Discord Developer Portal → Bot → Reset Token).'); process.exit(1) }
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const commands = [new SlashCommandBuilder().setName('ping').setDescription('Antwortet mit Pong')];
+client.once(Events.ClientReady, async c => { console.log('Bot online als ' + c.user.tag); await c.application.commands.set(commands); console.log('Befehl /ping registriert (kann bis zu einer Stunde dauern, bis er überall erscheint).') });
+client.on(Events.InteractionCreate, async i => { if (i.isChatInputCommand() && i.commandName === 'ping') await i.reply('Pong! 🏓 ' + client.ws.ping + ' ms') });
+client.login(token);
+`); log('Bot-Vorlage angelegt (index.js, package.json).') }
+    await deps(d, log);
+    log('Bot-Einladung: Discord Developer Portal → OAuth2 → URL Generator → „bot“ und „applications.commands“ ankreuzen.');
+  },
+  async dpy(s, d, env, log) {
+    const got = await gitGet(d, env, log);
+    if (!got && !fs.existsSync(path.join(d, 'main.py'))) {
+      await fsp.writeFile(path.join(d, 'requirements.txt'), 'discord.py>=2.4\n');
+      await fsp.writeFile(path.join(d, 'main.py'), `# Discord-Bot mit discord.py – Token unter Startup → „Bot-Token“ eintragen
+import os, sys, discord
+from discord import app_commands
+token = os.environ.get('DISCORD_TOKEN')
+if not token:
+    print('Kein Token: Trage unter Startup die Variable „Bot-Token“ ein (Discord Developer Portal → Bot → Reset Token).', flush=True); sys.exit(1)
+client = discord.Client(intents=discord.Intents.default())
+tree = app_commands.CommandTree(client)
+@tree.command(name='ping', description='Antwortet mit Pong')
+async def ping(interaction: discord.Interaction):
+    await interaction.response.send_message(f'Pong! 🏓 {round(client.latency * 1000)} ms')
+@client.event
+async def on_ready():
+    await tree.sync()
+    print(f'Bot online als {client.user}', flush=True)
+client.run(token)
+`); log('Bot-Vorlage angelegt (main.py, requirements.txt).') }
+    await deps(d, log);
+  },
+  async ts3(s, d, env, log) {
+    const os2 = WIN ? 'windows' : MAC ? 'macos' : process.platform === 'linux' && !TERMUX ? 'linux' : null, ar = process.arch === 'x64' ? 'x86_64' : process.arch === 'ia32' ? 'x86' : null;
+    if (!os2 || !ar) throw Error('TeamSpeak 3 gibt es nur für Windows, Linux und Mac mit Intel/AMD-Prozessor – nicht für ' + PLAT + ' (' + process.arch + ').');
+    const j = await getJSON('https://www.teamspeak.com/versions/server.json'), it = j[os2] && (j[os2][ar] || (os2 === 'macos' && j[os2].x86_64));
+    if (!it) throw Error('Keine TeamSpeak-Version für dieses System.');
+    const u = Object.values(it.mirrors)[0], f = path.join(d, path.basename(new URL(u).pathname)), tmp = path.join(d, '.hp', 'ts3-neu');
+    log('TeamSpeak ' + it.version + ' …'); await download(u, f, log);
+    await fsp.rm(tmp, { recursive: true, force: true }); await fsp.mkdir(tmp, { recursive: true });
+    await sh('tar', [/\.bz2$/.test(f) ? '-xjf' : '-xf', f, '-C', tmp], d);
+    const top = (await fsp.readdir(tmp)).map(x => path.join(tmp, x)), src = top.length === 1 && fs.statSync(top[0]).isDirectory() ? top[0] : tmp;
+    for (const x of await fsp.readdir(src)) { const to = path.join(d, x); await fsp.rm(to, { recursive: true, force: true }); await fsp.rename(path.join(src, x), to) }
+    await fsp.rm(tmp, { recursive: true, force: true }); try { fs.unlinkSync(f) } catch (e) { }
+    log('Fertig. Setze unter Startup „TeamSpeak-Lizenz akzeptieren“ auf true. Beim ersten Start steht der Admin-Schlüssel (privilege key / token) in der Konsole – gut aufheben!');
   },
   async shell(s, d, env, log) {
     if (WIN) { const f = path.join(d, 'start.cmd'); if (!fs.existsSync(f)) { await fsp.writeFile(f, '@echo off\r\nrem Hier deinen Startbefehl eintragen\r\necho Hallo vom Handy-Panel! Port: %SERVER_PORT%\r\n:loop\r\nset /p line=\r\nif errorlevel 1 goto :eof\r\necho Eingabe: %line%\r\ngoto loop\r\n'); log('start.cmd angelegt – bearbeite sie unter „Dateien“.') } return }
@@ -480,7 +655,7 @@ const allocAttr = (a, s) => ({ id: a.id, ip: a.ip, alias: a.alias, ip_alias: a.a
 const PERMS = ['websocket.connect', 'control.console', 'control.start', 'control.stop', 'control.restart', 'file.create', 'file.read', 'file.read-content', 'file.update', 'file.delete', 'file.archive', 'startup.read', 'startup.update', 'startup.docker-image', 'settings.rename', 'settings.reinstall', 'allocation.read', 'allocation.create', 'allocation.update', 'allocation.delete'];
 const NODE_NAME = TERMUX ? 'Dieses Handy' : 'Dieses Gerät (' + PLAT + ')';
 function cliSrv(s) {
-  return { object: 'server', attributes: { server_owner: true, identifier: s.identifier, internal_id: s.id, uuid: s.uuid, name: s.name, node: NODE_NAME, is_node_under_maintenance: false, sftp_details: { ip: '', port: 0 }, description: s.description || '', limits: s.limits, invocation: fill(s, s.startup), docker_image: s.image, egg_features: [], egg: s.egg, feature_limits: Object.assign({}, s.feature_limits, { allocations: Math.max(5, +(s.feature_limits || {}).allocations || 0) }), status: s.status, is_suspended: !!s.suspended, is_transferring: false, relationships: { allocations: { object: 'list', data: allocsOf(s).map(a => ({ object: 'allocation', attributes: allocAttr(a, s) })) } } } };
+  return { object: 'server', attributes: { server_owner: true, identifier: s.identifier, internal_id: s.id, uuid: s.uuid, name: s.name, node: NODE_NAME, is_node_under_maintenance: false, sftp_details: { ip: '', port: 0 }, description: s.description || '', limits: s.limits, invocation: fill(s, s.startup), docker_image: s.image, egg_features: [], egg: s.egg, egg_name: (EGGS[s.egg] || {}).name || '', feature_limits: Object.assign({}, s.feature_limits, { allocations: Math.max(5, +(s.feature_limits || {}).allocations || 0) }), status: s.status, is_suspended: !!s.suspended, is_transferring: false, relationships: { allocations: { object: 'list', data: allocsOf(s).map(a => ({ object: 'allocation', attributes: allocAttr(a, s) })) } } } };
 }
 function appSrv(s, inc) {
   const at = { id: s.id, external_id: null, uuid: s.uuid, identifier: s.identifier, name: s.name, description: s.description || '', status: s.suspended ? 'suspended' : s.status, suspended: !!s.suspended, limits: s.limits, feature_limits: s.feature_limits, user: 1, node: 1, allocation: s.allocation, nest: (EGGS[s.egg] || {}).nest || 1, egg: s.egg, container: { startup_command: s.startup, image: s.image, installed: s.status ? 0 : 1, environment: envOf(s) }, updated_at: s.updated_at, created_at: s.created_at };
@@ -818,6 +993,7 @@ function mcPing(port, host, ms) {
 const tcpOpen = (port, ms) => new Promise(res => { const so = net.connect(port, '127.0.0.1'); const fin = v => { try { so.destroy() } catch (e) { } res(v) }; so.setTimeout(ms || 2000, () => fin(false)); so.on('connect', () => fin(true)); so.on('error', () => fin(false)) });
 async function probe(s) {
   const a = allocOf(s), port = a ? a.port : 0, e = EGGS[s.egg] || {}, st = rt(s).state;
+  if (s.egg === 16) return { type: 'ts3', port, state: st, online: st === 'running', query: +envOf(s).QUERY_PORT || 10011 };
   if (e.nest === 1) return Object.assign({ type: 'minecraft', port, state: st }, st === 'offline' ? { online: false, err: 'aus' } : await mcPing(port));
   if (s.egg === 7) {
     const pw = envOf(s).LAVALINK_PASSWORD || '', o = { type: 'lavalink', port, state: st, password: pw, online: false };
