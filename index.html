@@ -3013,6 +3013,8 @@ function netConnect(d){
   if(pub)h+=row('globe','Über das Internet',A(pub),fok?'✓ im Router freigegeben'+(n.upnp.router?' ('+esc(n.upnp.router)+')':''):ferr?'✗ Freigabe fehlgeschlagen: '+esc(ferr.err):'nur mit Portfreigabe im Router');
   if(n.public.v6)h+=row('globe','Internet (IPv6, nur wenn der Spieler auch IPv6 hat)',mc&&port==25565?n.public.v6:'['+n.public.v6+']:'+port,'');
   h+=row('server','Auf diesem Gerät',A('localhost'),'');
+  const p25=mc&&port!=25565&&a.find(x=>x.port==25565);
+  if(p25)h+=`<div class="banner">Tipp: Dein Server nutzt Port <b>${port}</b>. Mit <b>25565</b> (Minecraft-Standard) reicht Spielern die IP ohne Port.<button class="btn" data-a="net-prim" data-i="${esc(p25.id)}">${ico('check',18)}25565 als Hauptadresse</button></div>`;
   if(n.cgnat)h+=`<div class="banner"><b>Achtung: Dein Anschluss hat keine eigene öffentliche IPv4-Adresse</b> (CGNAT/DS-Lite, mobiles Netz oder doppelter Router). Portfreigaben wirken dann nicht von außen. Lösung: ein kostenloser Spiele-Tunnel wie <b>playit.gg</b> (siehe unten) oder beim Anbieter eine öffentliche IPv4 anfragen.</div>`;
   if(n.termux&&lan&&/^10\.|^100\./.test(lan)&&!/^10\.0\.|^10\.1\./.test(lan))h+=`<p class="st">Das Handy scheint über mobile Daten online zu sein – dann ist der Server nur über einen Tunnel (z. B. playit.gg) von außen erreichbar. Im WLAN klappt es direkt.</p>`;
   h+=`<div class="grid2">${fok?`<button class="btn" data-a="net-up" data-p="${port}" data-on="0">${ico('x',18)}Freigabe entfernen</button>`:`<button class="btn pri" data-a="net-up" data-p="${port}" data-on="1"${n.upnp.state==='ok'?'':' title="Kein Router mit UPnP gefunden"'}>${ico('globe',18)}Im Router freigeben</button>`}${mc&&pub?`<button class="btn" data-a="net-chk" data-h="${esc(pub)}" data-p="${port}">${ico('check',18)}Von außen testen</button>`:`<button class="btn" data-a="net-rf">${ico('refresh',18)}Neu prüfen</button>`}</div>`;
@@ -3025,7 +3027,7 @@ function netConnect(d){
     <label>Beispiel</label><select id="lls">${LLS.map(([v,l])=>`<option value="${v}"${v===k?' selected':''}>${l}</option>`).join('')}</select>
     <div class="srcbox" style="white-space:pre-wrap;word-break:break-all;user-select:text;margin-top:8px">${esc(llSnip(k,hh,port,pw))}</div><button class="btn" data-a="cpy" data-v="${esc(llSnip(k,hh,port,pw))}">${ico('copy',18)}Beispiel kopieren</button>
     <p class="st">Läuft dein Bot im selben Handy-Panel (Node.js- oder Python-Server), nimm „auf diesem Gerät“. YouTube-Suche: <code>ytsearch:Lied</code>, SoundCloud: <code>scsearch:Lied</code>.</p>`}
-  h+=`<details class="dt"><summary>Port von Hand im Router freigeben</summary><p class="st">Falls der Knopf oben nicht klappt: Im Router eine Portfreigabe einrichten – Protokoll <b>TCP</b>${mc?' (für Bedrock/Geyser zusätzlich UDP)':''}, Port <b>${port}</b>, an das Gerät <b>${esc(lan||'mit dem Panel')}</b>.<br>• <b>FRITZ!Box</b>: Internet → Freigaben → Portfreigaben → Gerät für Freigaben hinzufügen → Neue Freigabe → Portfreigabe.<br>• <b>Telekom Speedport</b>: Internet → Portfreischaltung.<br>• <b>Vodafone/andere</b>: meist unter „Port Forwarding“ oder „NAT“.<br>Danach mit „Von außen testen“ prüfen. Gib deinem Gerät im Router am besten eine feste IP, sonst passt die Freigabe nach einem Neustart evtl. nicht mehr.</p></details>
+  h+=`<details class="dt"><summary>Port von Hand im Router freigeben</summary><p class="st">Falls der Knopf oben nicht klappt: Im Router eine Portfreigabe einrichten – Protokoll <b>TCP</b>${mc?' (Minecraft Java braucht TCP; UDP nur zusätzlich für Bedrock/Geyser)':''}, öffentlicher Port und Ziel-Port <b>${port}</b> (die Hauptadresse unten), an das Gerät <b>${esc(lan||'mit dem Panel')}</b>.<br>• <b>FRITZ!Box</b>: Internet → Freigaben → Portfreigaben → Gerät für Freigaben hinzufügen → Neue Freigabe → Portfreigabe.<br>• <b>Telekom Speedport</b>: Internet → Portfreischaltung.<br>• <b>Vodafone/andere</b>: meist unter „Port Forwarding“ oder „NAT“.<br>Danach mit „Von außen testen“ prüfen. Gib deinem Gerät im Router am besten eine feste IP, sonst passt die Freigabe nach einem Neustart evtl. nicht mehr.</p></details>
   <details class="dt"><summary>Kein Zugriff auf den Router? Spiele-Tunnel</summary><p class="st">Mit <b>playit.gg</b> (kostenlos) bekommt dein Server eine feste Adresse aus dem Internet – ganz ohne Portfreigabe, auch bei CGNAT oder mobilen Daten. Konto auf playit.gg anlegen, den „playit“-Agenten auf diesem Gerät installieren (Linux/Windows/Mac; auf Android über Termux), einen „Minecraft Java“-Tunnel auf <b>127.0.0.1:${port}</b> anlegen und die angezeigte Adresse an deine Freunde geben.<br>Der Fernzugriff des Handy-Panels gilt nur für die App, nicht für Spieler.</p></details></div>`;
   return h;
 }
@@ -3057,10 +3059,11 @@ async function netUp(port,on,proto){
   if(await act(()=>api('POST','',{base:'/api/handy/upnp',json:{port,proto:proto||(isMc(S.srv)||isTs(S.srv)?'BOTH':'TCP'),on,name:S.srv.name},timeout:30000}),on?'✓ Im Router freigegeben':'Freigabe entfernt'))loadNet(true)}
 // Prüft über mcsrvstat.us (von außen), ob Spieler den Server erreichen
 async function netChk(h,port){
-  const N=S.nx||(S.nx={});N.chk=`<div class="diag">${dg('..','Teste '+esc(h+':'+port)+' von außen …')}</div>`;redraw('net');
+  const N=S.nx||(S.nx={}),pr=S.ld.net&&S.ld.net.data&&S.ld.net.data.pr;
+  if(S.state==='offline'||(!S.state&&pr&&pr.state==='offline')){N.chk=`<div class="diag">${dg('er','Der Server ist aus','Ein ausgeschalteter Server ist von außen nie erreichbar. Starte ihn (Konsole → Start), warte bis er fertig geladen ist („Done“) und teste dann noch einmal.')}</div>`;redraw('net');return}N.chk=`<div class="diag">${dg('..','Teste '+esc(h+':'+port)+' von außen …')}</div>`;redraw('net');
   try{const r=await fetch('https://api.mcsrvstat.us/3/'+encodeURIComponent(h+':'+port),{cache:'no-store'}),j=await r.json();
     N.chk=j.online?`<div class="diag">${dg('ok','Von außen erreichbar ✓',esc((j.version||'')+' · '+((j.players&&j.players.online)||0)+' / '+((j.players&&j.players.max)||0)+' Spieler'+(j.motd&&j.motd.clean?' · '+j.motd.clean.join(' '):'')))}</div>`
-     :`<div class="diag">${dg('er','Von außen nicht erreichbar',(j.debug&&j.debug.ping===false&&j.debug.query===false?'Keine Antwort auf '+esc(h+':'+port)+'. ':'')+'Läuft der Server? Ist der Port im Router freigegeben (Knopf oben)? Bei CGNAT/mobilem Netz geht es nur über einen Tunnel. Hinweis: Der Test merkt sich Ergebnisse ein paar Minuten.')}</div>`}
+     :`<div class="diag">${dg('er','Von außen nicht erreichbar',(j.debug&&j.debug.ping===false&&j.debug.query===false?'Keine Antwort auf '+esc(h+':'+port)+'. ':'')+'Prüfe: Ist im Router <b>TCP</b>-Port '+port+' an dieses Gerät weitergeleitet (UDP allein reicht für Minecraft Java nicht)? Ist es dieselbe Geräte-IP wie oben unter „WLAN“? Bei CGNAT/mobilem Netz geht es nur über einen Tunnel. Wichtig: Der Prüfdienst merkt sich ein Ergebnis bis zu 5 Minuten – nach einer Änderung kurz warten, dann erneut testen.')}</div>`}
   catch(e){N.chk=`<div class="diag">${dg('er','Test nicht möglich','Der Prüfdienst mcsrvstat.us ist nicht erreichbar.')}</div>`}
   redraw('net')}
 
@@ -3127,7 +3130,8 @@ Object.assign(H,{
   },
   'db-new':()=>dbNew(),'db-open':b=>dbOpen(b.dataset.i),
   'net-new':async()=>{if(await act(()=>api('POST',SP('/network/allocations')),'Adresse zugewiesen'))loadNet(true)},'net-menu':b=>netMenu(b.dataset.i),
-  'net-up':b=>netUp(+b.dataset.p,b.dataset.on==='1'),'net-chk':b=>netChk(b.dataset.h,+b.dataset.p),'net-rf':()=>{S.netRf=1;S.nx={};loadNet()},
+  'net-up':b=>netUp(+b.dataset.p,b.dataset.on==='1'),
+  'net-prim':async b=>{if(await act(()=>api('POST',SP('/network/allocations/'+encodeURIComponent(b.dataset.i)+'/primary')),'Hauptadresse ist jetzt 25565 – gilt nach einem Neustart des Servers')){S.nx={};loadNet(true)}},'net-chk':b=>netChk(b.dataset.h,+b.dataset.p),'net-rf':()=>{S.netRf=1;S.nx={};loadNet()},
   'll-pw':()=>{const N=S.nx||(S.nx={});N.pw=!N.pw;redraw('net')},
   'var-edit':b=>varEdit(b.dataset.k),
   'set-ren':()=>setRen(),'set-rei':()=>setRei(),
@@ -5031,7 +5035,7 @@ tool({id:'set',sys:1,icon:'sliders',title:'Einstellungen',desc:'Design, Textgrö
   <label>Standard-Verschlüsselung</label><select id="al">${Object.entries(ALGS).map(([k,v])=>`<option value="${k}"${k===SET.alg?' selected':''}>${v.n}</option>`).join('')}</select>
   <label>Daten</label><button id="rs" class="btn">${ico('trash',18)}Alle Daten zurücksetzen</button>
   <p class="st">Löscht Notizen, eigene Stile, Server-Verbindungen (samt API-Schlüsseln), die Daten der AI Agents (Chats, Arbeitsbereiche, Wissen), Chat-Kontakte samt Verlauf und Einstellungen von diesem Gerät. Erstelle vorher ein Backup. Heruntergeladene KI-Modelle bleiben erhalten – die löschst du unter AI Agents → Modelle.</p>
-  <p class="foot">Toolbox · Version 1.10</p>`;
+  <p class="foot">Toolbox · Version 1.10.1</p>`;
   el.onclick=e=>{const b=e.target.closest('button');if(!b)return;const g=b.closest('.seg');
     if(g){const k=g.dataset.k;SET[k]=k==='z'?+b.dataset.v:b.dataset.v;g.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));saveSet();if(k==='nt'&&SET.nt==='on')askNt(g)}
     else if(b.dataset.ac!=null){SET.ac=+b.dataset.ac;el.querySelectorAll('.sw').forEach(x=>x.classList.toggle('on',x===b));saveSet()}
