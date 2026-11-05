@@ -27,7 +27,7 @@ const net = require('net');
 const { spawn, execFile } = require('child_process');
 const { StringDecoder } = require('string_decoder');
 
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 const ARGS = process.argv.slice(2);
 const WITHVAL = ['--port', '--dir', '--wrap', '--app'];
 const POS = ARGS.filter((x, i) => !x.startsWith('--') && !WITHVAL.includes(ARGS[i - 1])); // Wörter, die keine Optionen sind
@@ -56,7 +56,9 @@ if (!C.key || (opt('neuer-schluessel') && !CMD && !WRAP)) C.key = 'tbp_' + rid(2
 if (opt('app') && opt('app') !== true && !WRAP) C.app = String(opt('app')).replace(/\/*$/, '/');
 if (opt('fernzugriff') && !WRAP) C.tunnel = true;
 if (!C.user) C.user = { id: 1, uuid: crypto.randomUUID(), username: 'handy', email: 'handy@localhost', first_name: 'Handy', last_name: 'Panel', language: 'de', root_admin: true, '2fa': false, created_at: now(), updated_at: now() };
-if (!C.allocs.length) { for (const p of [25565, 25566, 25567, 25568, 25569, 25570, 19132, 3000, 3001, 3002, 8081, 8082]) C.allocs.push({ id: ++C.seq.alloc, ip: '0.0.0.0', alias: null, port: p, notes: null }) }
+if (!C.allocs.length) { for (const p of [25565, 25566, 25567, 25568, 25569, 25570, 19132, 2333, 2334, 3000, 3001, 3002, 8081, 8082]) C.allocs.push({ id: ++C.seq.alloc, ip: '0.0.0.0', alias: null, port: p, notes: null }) }
+if (!WRAP && !C.allocs.some(a => a.port === 2333)) C.allocs.push({ id: ++C.seq.alloc, ip: '0.0.0.0', alias: null, port: 2333, notes: null }); // Lavalink (ab 1.3)
+if (!C.upnp) C.upnp = []; // Portfreigaben im Router (UPnP), die das Panel aktuell hält
 let saveT = null;
 function save(now_) {
   clearTimeout(saveT);
@@ -71,13 +73,17 @@ const MC_VARS = (dflt) => [
   { name: 'Server-Datei', env: 'SERVER_JARFILE', def: dflt || 'server.jar', desc: 'Name der .jar-Datei', rules: 'required|string|max:60' },
   { name: 'Minecraft-EULA akzeptieren', env: 'EULA', def: 'false', desc: 'true = du akzeptierst die Minecraft-EULA (aka.ms/MinecraftEULA). Ohne „true“ startet der Server nicht.', rules: 'required|in:true,false' }];
 const JAVA_START = 'java -Xms128M -Xmx{{SERVER_MEMORY}}M -jar {{SERVER_JARFILE}} nogui';
-const NESTS = [{ id: 1, name: 'Minecraft', description: 'Minecraft: Java Edition (braucht Java 21 oder neuer)', eggs: [1, 2, 3] }, { id: 2, name: 'Programme', description: 'Eigene Programme, Bots und Web-Apps', eggs: [4, 5, 6] }];
+const NESTS = [{ id: 1, name: 'Minecraft', description: 'Minecraft: Java Edition (braucht Java 21 oder neuer)', eggs: [1, 2, 3] }, { id: 2, name: 'Programme', description: 'Eigene Programme, Bots und Web-Apps', eggs: [4, 5, 6] }, { id: 3, name: 'Discord & Musik', description: 'Musik-Server für Discord-Bots', eggs: [7] }];
 const EGGS = {
   1: { nest: 1, name: 'Paper', description: 'Schneller Minecraft-Server mit Plugins (empfohlen).', image: 'termux/java', startup: JAVA_START, stop: 'stop', done: /\)! For help, type/, vars: MC_VARS(), install: 'paper' },
   2: { nest: 1, name: 'Vanilla', description: 'Original-Minecraft-Server von Mojang.', image: 'termux/java', startup: JAVA_START, stop: 'stop', done: /\)! For help, type/, vars: MC_VARS(), install: 'vanilla' },
   3: { nest: 1, name: 'Fabric', description: 'Minecraft mit Fabric-Mods.', image: 'termux/java', startup: JAVA_START, stop: 'stop', done: /\)! For help, type/, vars: MC_VARS(), install: 'fabric' },
   4: { nest: 2, name: 'Node.js', description: 'JavaScript-Programm oder Discord-Bot (Node.js).', image: 'termux/node', startup: 'node {{MAIN_FILE}}', stop: '^C', vars: [{ name: 'Startdatei', env: 'MAIN_FILE', def: 'index.js', desc: 'Datei, die gestartet wird', rules: 'required|string|max:100' }], install: 'node' },
   5: { nest: 2, name: 'Python', description: 'Python-Programm oder Bot.', image: 'termux/python', startup: PY + ' {{MAIN_FILE}}', stop: '^C', vars: [{ name: 'Startdatei', env: 'MAIN_FILE', def: 'main.py', desc: 'Datei, die gestartet wird', rules: 'required|string|max:100' }], install: 'python' },
+  7: { nest: 3, name: 'Lavalink', description: 'Musik-Server für Discord-Bots (Lavalink 4 mit YouTube-Plugin). Braucht Java 17 oder neuer.', image: 'termux/java', startup: 'java -Xmx{{SERVER_MEMORY}}M -jar Lavalink.jar', stop: '^C', done: /Lavalink is ready to accept connections|Started Launcher\.Companion|Started LauncherKt/, vars: [
+    { name: 'Passwort', env: 'LAVALINK_PASSWORD', def: '', desc: 'Passwort, mit dem sich dein Bot verbindet. Leer = wird bei der Installation erzeugt.', rules: 'nullable|string|max:100' },
+    { name: 'Lavalink-Version', env: 'LAVALINK_VERSION', def: 'latest', desc: '„latest“ = neueste Version, oder z. B. 4.2.2', rules: 'required|string|max:20' },
+    { name: 'YouTube-Plugin', env: 'YOUTUBE_PLUGIN', def: 'true', desc: 'true = YouTube über das offizielle Plugin „youtube-source“ (empfohlen)', rules: 'required|in:true,false' }], install: 'lavalink' },
   6: { nest: 2, name: 'Eigener Befehl', description: 'Startet einen beliebigen Befehl (Standard: ' + (WIN ? 'start.cmd' : 'start.sh') + ').', image: 'termux/shell', startup: WIN ? 'start.cmd' : 'sh start.sh', stop: '^C', vars: [], install: 'shell' }
 };
 const eggAttr = (id, inclVars) => {
@@ -105,6 +111,7 @@ function envOf(s) {
   (e ? e.vars : []).forEach(v => env[v.env] = v.def);
   Object.assign(env, s.env || {});
   env.SERVER_MEMORY = String(+s.limits.memory || 1024); env.SERVER_PORT = String(a ? a.port : 25565); env.SERVER_IP = '0.0.0.0'; env.P_SERVER_UUID = s.uuid; env.P_SERVER_LOCATION = 'handy';
+  if (s.egg === 7) { env.SERVER_ADDRESS = '0.0.0.0'; if (env.LAVALINK_PASSWORD) env.LAVALINK_SERVER_PASSWORD = env.LAVALINK_PASSWORD } // Lavalink (Spring) liest diese Werte direkt
   return env;
 }
 
@@ -120,6 +127,7 @@ async function prepare(s) {
     await fsp.writeFile(pf, t);
     if (String(env.EULA).toLowerCase() !== 'true') { out(s, 'Die Minecraft-EULA ist nicht akzeptiert. Setze die Variable „Minecraft-EULA akzeptieren“ (EULA) unter Startup auf true.', 'error'); return false }
   }
+  if (s.egg === 7) { llPass(s); if (!fs.existsSync(path.join(d, 'application.yml'))) await fsp.writeFile(path.join(d, 'application.yml'), llYml(s, envOf(s), await llPluginVer().catch(() => null))); if (!fs.existsSync(path.join(d, 'Lavalink.jar'))) { out(s, 'Lavalink.jar fehlt – bitte unter Einstellungen „Neu installieren“.', 'error'); return false } }
   return true;
 }
 /* Jeder Server läuft unter einem eigenen kleinen „Wächter“ (dieses Programm mit --wrap).
@@ -339,6 +347,18 @@ const INST = {
     const lo = L.find(x => x.stable) || L[0], ins = I.find(x => x.stable) || I[0]; log('Fabric ' + lo.version + ' für Minecraft ' + game);
     await download(`https://meta.fabricmc.net/v2/versions/loader/${game}/${lo.version}/${ins.version}/server/jar`, path.join(d, env.SERVER_JARFILE || 'server.jar'), log);
   },
+  async lavalink(s, d, env, log) {
+    const jv = await javaMajor(); log(jv ? 'Gefundenes Java: ' + jv : 'Java ist (noch) nicht installiert. ' + HINT());
+    if (jv && jv < 17) log('Achtung: Lavalink 4 braucht Java 17 oder neuer (gefunden: ' + jv + ').');
+    const v = String(env.LAVALINK_VERSION || 'latest').trim(), u = v === 'latest' ? 'https://github.com/lavalink-devs/Lavalink/releases/latest/download/Lavalink.jar' : 'https://github.com/lavalink-devs/Lavalink/releases/download/' + encodeURIComponent(v) + '/Lavalink.jar';
+    log('Lade Lavalink ' + v + ' …'); await download(u, path.join(d, 'Lavalink.jar'), log);
+    llPass(s); const e2 = envOf(s), f = path.join(d, 'application.yml'), pv = String(e2.YOUTUBE_PLUGIN) === 'false' ? null : await llPluginVer().catch(() => null);
+    if (String(e2.YOUTUBE_PLUGIN) !== 'false') log(pv ? 'YouTube-Plugin: ' + pv : 'Die Version des YouTube-Plugins ließ sich nicht ermitteln – YouTube bleibt vorerst aus.');
+    if (!fs.existsSync(f)) { await fsp.writeFile(f, llYml(s, e2, pv)); log('application.yml angelegt.') }
+    else if (pv) { const t = await fsp.readFile(f, 'utf8'), n = t.replace(/dev\.lavalink\.youtube:youtube-plugin:[\w.\-]+/, 'dev.lavalink.youtube:youtube-plugin:' + pv); if (n !== t) { await fsp.writeFile(f, n); log('YouTube-Plugin in application.yml auf ' + pv + ' aktualisiert.') } }
+    log('Verbindung für deinen Bot: Host = IP dieses Geräts (auf demselben Gerät 127.0.0.1), Port ' + e2.SERVER_PORT + ', Passwort steht unter Startup bzw. im Netzwerk-Reiter der App.');
+    if (TERMUX) log('Hinweis: Auf Android fehlen Lavalink manchmal Audio-Bibliotheken. Klappt die Wiedergabe nicht, läuft Lavalink zuverlässig auf einem PC/Linux-Server.');
+  },
   async node(s, d, env, log) {
     const f = path.join(d, env.MAIN_FILE || 'index.js');
     if (!fs.existsSync(f)) { await fsp.writeFile(f, "// Beispiel: kleine Webseite auf dem Port des Servers\nconst http = require('http');\nconst port = process.env.SERVER_PORT || 3000;\nhttp.createServer((q, r) => r.end('Hallo vom Handy-Panel!')).listen(port, () => console.log('Läuft auf Port ' + port));\nprocess.stdin.on('data', d => console.log('Befehl erhalten: ' + d.toString().trim()));\n"); log('Beispiel-Datei ' + path.basename(f) + ' angelegt.') }
@@ -353,6 +373,92 @@ const INST = {
     if (WIN) { const f = path.join(d, 'start.cmd'); if (!fs.existsSync(f)) { await fsp.writeFile(f, '@echo off\r\nrem Hier deinen Startbefehl eintragen\r\necho Hallo vom Handy-Panel! Port: %SERVER_PORT%\r\n:loop\r\nset /p line=\r\nif errorlevel 1 goto :eof\r\necho Eingabe: %line%\r\ngoto loop\r\n'); log('start.cmd angelegt – bearbeite sie unter „Dateien“.') } return }
     const f = path.join(d, 'start.sh'); if (!fs.existsSync(f)) { await fsp.writeFile(f, '#!/bin/sh\n# Hier deinen Startbefehl eintragen\necho "Hallo vom Handy-Panel! Port: $SERVER_PORT"\nwhile read line; do echo "Eingabe: $line"; done\n'); log('start.sh angelegt – bearbeite sie unter „Dateien“.') } }
 };
+/* ---------- Lavalink ---------- */
+function llPass(s) { s.env = s.env || {}; if (!String(s.env.LAVALINK_PASSWORD || '').trim()) { s.env.LAVALINK_PASSWORD = rid(12); save() } return s.env.LAVALINK_PASSWORD }
+let LLPV = null;
+async function llPluginVer() { if (LLPV && Date.now() - LLPV.t < 3600e3) return LLPV.v; const t = await (await fetch('https://maven.lavalink.dev/releases/dev/lavalink/youtube/youtube-plugin/maven-metadata.xml', { signal: AbortSignal.timeout(15000) })).text(); const m = /<release>([^<]+)<\/release>/.exec(t) || /<latest>([^<]+)<\/latest>/.exec(t); if (!m) throw Error('keine Version'); LLPV = { v: m[1], t: Date.now() }; return m[1] }
+const llYml = (s, env, pv) => `# Lavalink – angelegt vom Toolbox Handy-Panel. Port und Passwort setzt das Panel beim Start
+# (Variablen unter Startup). Alles andere darfst du hier anpassen.
+server:
+  port: ${env.SERVER_PORT}
+  address: 0.0.0.0
+  http2:
+    enabled: false
+${pv ? `plugins:
+  youtube:
+    enabled: true
+    allowSearch: true
+    allowDirectVideoIds: true
+    allowDirectPlaylistIds: true
+    clients:
+      - MUSIC
+      - ANDROID_VR
+      - WEB
+      - WEBEMBEDDED
+` : ''}lavalink:
+${pv ? `  plugins:
+    - dependency: "dev.lavalink.youtube:youtube-plugin:${pv}"
+      snapshot: false
+` : ''}  server:
+    password: "${String(env.LAVALINK_PASSWORD || '').replace(/["\\]/g, '')}"
+    sources:
+      youtube: false
+      bandcamp: true
+      soundcloud: true
+      twitch: true
+      vimeo: true
+      nico: true
+      http: true
+      local: false
+    filters:
+      volume: true
+      equalizer: true
+      karaoke: true
+      timescale: true
+      tremolo: true
+      vibrato: true
+      distortion: true
+      rotation: true
+      channelMix: true
+      lowPass: true
+    nonAllocatingFrameBuffer: false
+    bufferDurationMs: 400
+    frameBufferDurationMs: 5000
+    opusEncodingQuality: 10
+    resamplingQuality: LOW
+    trackStuckThresholdMs: 10000
+    useSeekGhosting: true
+    youtubePlaylistLoadLimit: 6
+    playerUpdateInterval: 5
+    youtubeSearchEnabled: true
+    soundcloudSearchEnabled: true
+    gc-warnings: true
+metrics:
+  prometheus:
+    enabled: false
+    endpoint: /metrics
+sentry:
+  dsn: ""
+  environment: ""
+logging:
+  file:
+    path: ./logs/
+  level:
+    root: INFO
+    lavalink: INFO
+  request:
+    enabled: true
+    includeClientInfo: true
+    includeHeaders: false
+    includeQueryString: true
+    includePayload: true
+    maxPayloadLength: 10000
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB
+      max-history: 5
+`;
+
 async function install(s, re) {
   if (running(s)) { stop(s, true); await sleep(800) }
   s.status = 'installing'; save(); emit(s, 'install started', []);
@@ -367,20 +473,23 @@ async function install(s, re) {
 
 /* ---------- Pterodactyl-Antworten ---------- */
 const list = (data, object) => ({ object: 'list', data, meta: { pagination: { total: data.length, count: data.length, per_page: Math.max(data.length, 1), current_page: 1, total_pages: 1, links: {} } } });
-const allocAttr = (a, s) => ({ id: a.id, ip: a.ip, alias: a.alias, ip_alias: a.alias, port: a.port, notes: a.notes, assigned: !!C.servers.find(x => x.allocation === a.id), is_default: !!(s && s.allocation === a.id) });
-const PERMS = ['websocket.connect', 'control.console', 'control.start', 'control.stop', 'control.restart', 'file.create', 'file.read', 'file.read-content', 'file.update', 'file.delete', 'file.archive', 'startup.read', 'startup.update', 'startup.docker-image', 'settings.rename', 'settings.reinstall'];
+// Ports: jeder Server hat eine Hauptadresse (allocation) und optional weitere (extra)
+const usedBy = id => C.servers.find(x => x.allocation === id || (x.extra || []).includes(id));
+const allocsOf = s => [s.allocation, ...(s.extra || [])].map(id => C.allocs.find(a => a.id === id)).filter(Boolean);
+const allocAttr = (a, s) => ({ id: a.id, ip: a.ip, alias: a.alias, ip_alias: a.alias, port: a.port, notes: a.notes, assigned: !!usedBy(a.id), is_default: !!(s && s.allocation === a.id) });
+const PERMS = ['websocket.connect', 'control.console', 'control.start', 'control.stop', 'control.restart', 'file.create', 'file.read', 'file.read-content', 'file.update', 'file.delete', 'file.archive', 'startup.read', 'startup.update', 'startup.docker-image', 'settings.rename', 'settings.reinstall', 'allocation.read', 'allocation.create', 'allocation.update', 'allocation.delete'];
+const NODE_NAME = TERMUX ? 'Dieses Handy' : 'Dieses Gerät (' + PLAT + ')';
 function cliSrv(s) {
-  const a = allocOf(s);
-  return { object: 'server', attributes: { server_owner: true, identifier: s.identifier, internal_id: s.id, uuid: s.uuid, name: s.name, node: 'Dieses Handy', is_node_under_maintenance: false, sftp_details: { ip: '', port: 0 }, description: s.description || '', limits: s.limits, invocation: fill(s, s.startup), docker_image: s.image, egg_features: [], feature_limits: s.feature_limits, status: s.status, is_suspended: !!s.suspended, is_transferring: false, relationships: { allocations: { object: 'list', data: a ? [{ object: 'allocation', attributes: allocAttr(a, s) }] : [] } } } };
+  return { object: 'server', attributes: { server_owner: true, identifier: s.identifier, internal_id: s.id, uuid: s.uuid, name: s.name, node: NODE_NAME, is_node_under_maintenance: false, sftp_details: { ip: '', port: 0 }, description: s.description || '', limits: s.limits, invocation: fill(s, s.startup), docker_image: s.image, egg_features: [], egg: s.egg, feature_limits: Object.assign({}, s.feature_limits, { allocations: Math.max(5, +(s.feature_limits || {}).allocations || 0) }), status: s.status, is_suspended: !!s.suspended, is_transferring: false, relationships: { allocations: { object: 'list', data: allocsOf(s).map(a => ({ object: 'allocation', attributes: allocAttr(a, s) })) } } } };
 }
 function appSrv(s, inc) {
   const at = { id: s.id, external_id: null, uuid: s.uuid, identifier: s.identifier, name: s.name, description: s.description || '', status: s.suspended ? 'suspended' : s.status, suspended: !!s.suspended, limits: s.limits, feature_limits: s.feature_limits, user: 1, node: 1, allocation: s.allocation, nest: (EGGS[s.egg] || {}).nest || 1, egg: s.egg, container: { startup_command: s.startup, image: s.image, installed: s.status ? 0 : 1, environment: envOf(s) }, updated_at: s.updated_at, created_at: s.created_at };
-  if (inc) { at.relationships = {}; if (inc.includes('user')) at.relationships.user = { object: 'user', attributes: C.user }; if (inc.includes('node')) at.relationships.node = { object: 'node', attributes: nodeAttr() }; if (inc.includes('allocations')) { const a = allocOf(s); at.relationships.allocations = { object: 'list', data: a ? [{ object: 'allocation', attributes: allocAttr(a, s) }] : [] } } }
+  if (inc) { at.relationships = {}; if (inc.includes('user')) at.relationships.user = { object: 'user', attributes: C.user }; if (inc.includes('node')) at.relationships.node = { object: 'node', attributes: nodeAttr() }; if (inc.includes('allocations')) at.relationships.allocations = { object: 'list', data: allocsOf(s).map(a => ({ object: 'allocation', attributes: allocAttr(a, s) })) } }
   return { object: 'server', attributes: at };
 }
 function nodeAttr() {
   const used = C.servers.reduce((t, s) => ({ m: t.m + (+s.limits.memory || 0), d: t.d + (+s.limits.disk || 0) }), { m: 0, d: 0 });
-  return { id: 1, uuid: 'handy-node', public: true, name: 'Dieses Handy', description: 'Läuft in Termux', location_id: 1, fqdn: '127.0.0.1', scheme: 'http', behind_proxy: false, maintenance_mode: false, memory: Math.round(os.totalmem() / 1048576), memory_overallocate: 0, disk: 0, disk_overallocate: 0, upload_size: 1024, daemon_listen: PORT, daemon_sftp: 0, daemon_base: SRV, created_at: now(), updated_at: now(), allocated_resources: { memory: used.m, disk: used.d } };
+  return { id: 1, uuid: 'handy-node', public: true, name: NODE_NAME, description: 'Läuft auf ' + PLAT, location_id: 1, fqdn: '127.0.0.1', scheme: 'http', behind_proxy: false, maintenance_mode: false, memory: Math.round(os.totalmem() / 1048576), memory_overallocate: 0, disk: 0, disk_overallocate: 0, upload_size: 1024, daemon_listen: PORT, daemon_sftp: 0, daemon_base: SRV, created_at: now(), updated_at: now(), allocated_resources: { memory: used.m, disk: used.d } };
 }
 const fileAttr = (name, st) => {
   const m = st.mode, perm = (m & 0o777).toString(8).padStart(3, '0'), rwx = n => (n & 4 ? 'r' : '-') + (n & 2 ? 'w' : '-') + (n & 1 ? 'x' : '-');
@@ -433,7 +542,16 @@ async function client(req, res, p, q) {
   if (sub === '/settings/reinstall' && M === 'POST') { install(s, true); return send(res, 202) }
   if (sub === '/settings/docker-image' && M === 'PUT') { const j = await json(req); s.image = String(j.docker_image || s.image); save(); return send(res, 204) }
   if (sub.startsWith('/files')) return files(req, res, s, sub.slice(6), q);
-  if (/^\/(backups|schedules|databases|network)/.test(sub)) throw new HErr(400, 'Das gibt es im Handy-Panel nicht.');
+  if (sub.startsWith('/network/allocations')) {
+    const L = () => send(res, 200, list(allocsOf(s).map(a => ({ object: 'allocation', attributes: allocAttr(a, s) }))));
+    if (sub === '/network/allocations' && M === 'GET') return L();
+    if (sub === '/network/allocations' && M === 'POST') { if ((s.extra || []).length >= 4) throw new HErr(400, 'Mehr als 5 Ports pro Server gehen nicht.'); const a = C.allocs.find(x => !usedBy(x.id)); if (!a) throw new HErr(400, 'Kein freier Port mehr. Lege im Admin-Bereich (Nodes → Ports) weitere an.'); s.extra = (s.extra || []).concat(a.id); save(); return send(res, 200, { object: 'allocation', attributes: allocAttr(a, s) }) }
+    const m2 = /^\/network\/allocations\/(\d+)(\/primary)?$/.exec(sub), a = m2 && allocsOf(s).find(x => x.id === +m2[1]); if (!a) throw new HErr(404, 'Diese Adresse gehört nicht zu diesem Server.');
+    if (m2[2] && M === 'POST') { if (s.allocation !== a.id) { s.extra = (s.extra || []).filter(x => x !== a.id).concat(s.allocation); s.allocation = a.id; save(); out(s, 'Hauptport ist jetzt ' + a.port + ' – gilt ab dem nächsten Start.', 'daemon') } return send(res, 200, { object: 'allocation', attributes: allocAttr(a, s) }) }
+    if (M === 'POST') { const j = await json(req); a.notes = j.notes ? String(j.notes).slice(0, 255) : null; save(); return send(res, 200, { object: 'allocation', attributes: allocAttr(a, s) }) }
+    if (M === 'DELETE') { if (s.allocation === a.id) throw new HErr(400, 'Die Hauptadresse lässt sich nicht entfernen.'); s.extra = (s.extra || []).filter(x => x !== a.id); save(); return send(res, 204) }
+  }
+  if (/^\/(backups|schedules|databases)/.test(sub)) throw new HErr(400, 'Das gibt es im Handy-Panel nicht.');
   throw new HErr(404, 'Nicht gefunden.');
 }
 async function uniqueCopy(f) { const d = path.dirname(f), ext = path.extname(f), b = path.basename(f, ext); for (let i = 0; i < 100; i++) { const n = path.join(d, b + ' copy' + (i ? ' ' + i : '') + ext); if (!fs.existsSync(n)) return n } throw new HErr(409, 'Zu viele Kopien.') }
@@ -473,10 +591,10 @@ async function application(req, res, p, q) {
     const j = await json(req), e = EGGS[+j.egg];
     if (!String(j.name || '').trim()) bad('Der Name fehlt.', 'name'); if (!e) bad('Unbekanntes Egg.', 'egg');
     let al = j.allocation && C.allocs.find(a => a.id === +j.allocation.default);
-    if (!al && j.deploy) al = C.allocs.find(a => !C.servers.some(s => s.allocation === a.id));
-    if (!al) bad('Bitte einen freien Port wählen.', 'allocation.default'); if (C.servers.some(s => s.allocation === al.id)) bad('Dieser Port ist schon vergeben.', 'allocation.default');
+    if (!al && j.deploy) al = C.allocs.find(a => !usedBy(a.id));
+    if (!al) bad('Bitte einen freien Port wählen.', 'allocation.default'); if (usedBy(al.id)) bad('Dieser Port ist schon vergeben.', 'allocation.default');
     const env = {}; e.vars.forEach(v => env[v.env] = j.environment && j.environment[v.env] != null ? String(j.environment[v.env]) : v.def);
-    const s = { id: ++C.seq.server, uuid: crypto.randomUUID(), identifier: newIdent(), name: String(j.name).trim().slice(0, 191), description: String(j.description || ''), egg: +j.egg, image: j.docker_image || e.image, startup: j.startup || e.startup, env, limits: limitsFrom(j.limits), feature_limits: { databases: 0, allocations: 1, backups: 0 }, allocation: al.id, status: 'installing', suspended: false, start_on_completion: !!j.start_on_completion, created_at: now(), updated_at: now() };
+    const s = { id: ++C.seq.server, uuid: crypto.randomUUID(), identifier: newIdent(), name: String(j.name).trim().slice(0, 191), description: String(j.description || ''), egg: +j.egg, image: j.docker_image || e.image, startup: j.startup || e.startup, env, limits: limitsFrom(j.limits), feature_limits: { databases: 0, allocations: 5, backups: 0 }, allocation: al.id, extra: [], status: 'installing', suspended: false, start_on_completion: !!j.start_on_completion, created_at: now(), updated_at: now() };
     C.servers.push(s); save(); setImmediate(() => install(s, false));
     return send(res, 201, appSrv(s, []));
   }
@@ -484,7 +602,7 @@ async function application(req, res, p, q) {
   if (m) {
     const s = C.servers.find(x => x.id === +m[1]); if (!s) throw new HErr(404, 'Server nicht gefunden.'); const sub = m[2] || '';
     if (sub === '' && M === 'GET') return send(res, 200, appSrv(s, inc));
-    if ((sub === '' || sub === '/force') && M === 'DELETE' || (m[3] && M === 'DELETE')) { stop(s, true); C.servers = C.servers.filter(x => x !== s); save(); RT.delete(s.uuid); fsp.rm(dirOf(s), { recursive: true, force: true }).catch(() => { }); return send(res, 204) }
+    if ((sub === '' || sub === '/force') && M === 'DELETE' || (m[3] && M === 'DELETE')) { const ports = allocsOf(s).map(a => a.port); for (const x of C.upnp.filter(x => ports.includes(x.port))) upnpUnmap(x.port, x.proto).catch(() => { }); C.upnp = C.upnp.filter(x => !ports.includes(x.port)); stop(s, true); C.servers = C.servers.filter(x => x !== s); save(); RT.delete(s.uuid); fsp.rm(dirOf(s), { recursive: true, force: true }).catch(() => { }); return send(res, 204) }
     if (sub === '/details' && M === 'PATCH') { const j = await json(req); if (j.name != null) { if (!String(j.name).trim()) bad('Der Name fehlt.', 'name'); s.name = String(j.name).trim() } if (j.description != null) s.description = String(j.description); s.updated_at = now(); save(); return send(res, 200, appSrv(s, [])) }
     if (sub === '/build' && M === 'PATCH') { const j = await json(req); s.limits = limitsFrom(j); if (j.feature_limits) s.feature_limits = { databases: 0, allocations: Math.max(1, +j.feature_limits.allocations || 1), backups: 0 }; if (j.allocation && C.allocs.some(a => a.id === +j.allocation)) s.allocation = +j.allocation; s.updated_at = now(); save(); return send(res, 200, appSrv(s, [])) }
     if (sub === '/startup' && M === 'PATCH') { const j = await json(req); if (j.startup) s.startup = String(j.startup); if (j.image) s.image = String(j.image); if (j.environment) { s.env = s.env || {}; for (const k in j.environment) s.env[k] = String(j.environment[k] == null ? '' : j.environment[k]) } s.updated_at = now(); save(); return send(res, 200, appSrv(s, [])) }
@@ -503,7 +621,7 @@ async function application(req, res, p, q) {
   if (p === '/nodes/1/allocations' && M === 'GET') return send(res, 200, list(C.allocs.map(a => ({ object: 'allocation', attributes: allocAttr(a) }))));
   if (p === '/nodes/1/allocations' && M === 'POST') { const j = await json(req); const ps = (j.ports || []).flatMap(x => { const r = /^(\d+)(?:-(\d+))?$/.exec(String(x)); if (!r) return []; const a = +r[1], b = +(r[2] || r[1]); const o = []; for (let i = a; i <= b && o.length < 1000; i++)o.push(i); return o }); let n = 0; for (const port of ps) { if (port < 1024 || port > 65535 || C.allocs.some(a => a.port === port)) continue; C.allocs.push({ id: ++C.seq.alloc, ip: String(j.ip || '0.0.0.0'), alias: j.alias || null, port, notes: null }); n++ } save(); if (!n) bad('Keine neuen Ports (schon vorhanden oder ungültig).', 'ports'); return send(res, 204) }
   m = /^\/nodes\/1\/allocations\/(\d+)$/.exec(p);
-  if (m && M === 'DELETE') { const id = +m[1]; if (C.servers.some(s => s.allocation === id)) throw new HErr(400, 'Dieser Port wird von einem Server benutzt.'); C.allocs = C.allocs.filter(a => a.id !== id); save(); return send(res, 204) }
+  if (m && M === 'DELETE') { const id = +m[1]; if (usedBy(id)) throw new HErr(400, 'Dieser Port wird von einem Server benutzt.'); C.allocs = C.allocs.filter(a => a.id !== id); save(); return send(res, 204) }
   if (p.startsWith('/nodes')) throw new HErr(400, 'Das Handy-Panel hat genau einen Node: dieses Handy.');
   if (p === '/nests' && M === 'GET') return send(res, 200, list(NESTS.map(n => ({ object: 'nest', attributes: Object.assign({ id: n.id, uuid: 'nest-' + n.id, author: 'handy-panel', name: n.name, description: n.description, created_at: now(), updated_at: now() }, inc.includes('eggs') ? { relationships: { eggs: list(n.eggs.map(i => eggAttr(i, false))) } } : {}) }))));
   m = /^\/nests\/(\d+)\/eggs(?:\/(\d+))?$/.exec(p);
@@ -616,9 +734,106 @@ function seal(o) { const iv = crypto.randomBytes(12), c = crypto.createCipheriv(
 async function publishUrl() { if (!TUN.url) return; try { await fetch((process.env.HP_NTFY || 'https://ntfy.sh') + '/' + topicOf(C.key), { method: 'POST', body: seal({ u: TUN.url, t: Date.now(), v: VERSION }), signal: AbortSignal.timeout(15000) }) } catch (e) { } }
 setInterval(publishUrl, 6 * 3600e3).unref();
 
+/* ---------- Netzwerk: Adressen, Portfreigabe im Router (UPnP), Erreichbarkeit ---------- */
+const dgram = require('dgram');
+// Eigene IP in Richtung eines Ziels (es wird nichts gesendet) – klappt auch, wo Android die Liste der Netzwerke sperrt
+function localIpTo(host) { return new Promise(res => { let so; try { so = dgram.createSocket('udp4') } catch (e) { return res(null) } const fin = v => { try { so.close() } catch (e) { } res(v) }; so.on('error', () => fin(null)); try { so.connect(53, host, () => { let a = null; try { a = so.address().address } catch (e) { } fin(a && a !== '0.0.0.0' ? a : null) }) } catch (e) { fin(null) } setTimeout(() => fin(null), 2000) }) }
+const isPrivIp = ip => /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.)/.test(ip), isCgn = ip => /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(ip);
+async function lanIps() {
+  const o = [], main = await localIpTo('8.8.8.8');
+  try { for (const [n, l] of Object.entries(os.networkInterfaces())) for (const a of l || []) if (a.family === 'IPv4' && !a.internal) o.push({ ip: a.address, name: n, virt: /^(docker|br-|veth|virbr|vmnet|vboxnet|lxc|cni|flannel)/i.test(n) }) } catch (e) { }
+  if (main && !o.some(x => x.ip === main)) o.unshift({ ip: main, name: 'Standard', virt: false });
+  return o.sort((a, b) => (b.ip === main) - (a.ip === main) || a.virt - b.virt || isPrivIp(b.ip) - isPrivIp(a.ip));
+}
+const PUB = { v4: null, v6: null, t: 0, err: '' };
+async function publicIp(force) {
+  if (!force && PUB.t && Date.now() - PUB.t < 600000) return PUB;
+  const get = async u => { try { const r = await fetch(u, { signal: AbortSignal.timeout(6000), headers: { 'User-Agent': 'toolbox-handy-panel/' + VERSION } }); if (!r.ok) return null; const t = (await r.text()).trim(), ip = /^\{/.test(t) ? JSON.parse(t).ip : t; return /^[0-9a-f.:]+$/i.test(ip) ? ip : null } catch (e) { return null } };
+  const [a, b] = await Promise.all([(async () => (await get('https://api.ipify.org?format=json')) || (await get('https://ipv4.icanhazip.com')))(), get('https://api6.ipify.org?format=json')]);
+  PUB.v4 = a && a.includes('.') ? a : null; PUB.v6 = b && b.includes(':') ? b : null; PUB.t = Date.now(); PUB.err = a || b ? '' : 'Öffentliche IP nicht ermittelbar (kein Internet?)';
+  return PUB;
+}
+const UPNP = { st: 'unbekannt', ctrl: null, svc: null, router: null, lan: null, ext: null, err: '', t: 0 };
+function ssdp(ms) { return new Promise(res => {
+  const found = []; let so; try { so = dgram.createSocket({ type: 'udp4', reuseAddr: true }) } catch (e) { return res(found) }
+  const fin = () => { try { so.close() } catch (e) { } res(found) };
+  so.on('message', m => { const l = /^location:\s*(\S+)/im.exec(String(m)); if (l && !found.includes(l[1])) found.push(l[1]) });
+  so.on('error', fin);
+  so.bind(0, () => { for (const st of ['urn:schemas-upnp-org:device:InternetGatewayDevice:1', 'urn:schemas-upnp-org:device:InternetGatewayDevice:2', 'urn:schemas-upnp-org:service:WANIPConnection:1', 'urn:schemas-upnp-org:service:WANPPPConnection:1']) { const b = Buffer.from('M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: "ssdp:discover"\r\nMX: 2\r\nST: ' + st + '\r\n\r\n'); try { so.send(b, 1900, '239.255.255.250', () => { }) } catch (e) { } } });
+  setTimeout(fin, ms || 2500) }) }
+async function soap(action, args) {
+  const body = '<?xml version="1.0"?>\r\n<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:' + action + ' xmlns:u="' + UPNP.svc + '">' + Object.entries(args || {}).map(([k, v]) => '<' + k + '>' + htmlEsc(v) + '</' + k + '>').join('') + '</u:' + action + '></s:Body></s:Envelope>';
+  const r = await fetch(UPNP.ctrl, { method: 'POST', headers: { 'Content-Type': 'text/xml; charset="utf-8"', SOAPAction: '"' + UPNP.svc + '#' + action + '"' }, body, signal: AbortSignal.timeout(8000) }), t = await r.text();
+  if (!r.ok) { const c = /<errorCode>\s*(\d+)/.exec(t), d = /<errorDescription>\s*([^<]*)/.exec(t), e = Error((d && d[1]) || 'HTTP ' + r.status); e.code = c ? +c[1] : r.status; throw e }
+  const o = {}; for (const m of t.matchAll(/<(New\w+)>([^<]*)<\/\1>/g)) o[m[1]] = m[2]; return o;
+}
+async function igd(force) {
+  if (!force && UPNP.t && Date.now() - UPNP.t < (UPNP.ctrl ? 600000 : 60000)) return UPNP;
+  UPNP.t = Date.now(); UPNP.err = '';
+  const locs = process.env.HP_UPNP_LOCATION ? [process.env.HP_UPNP_LOCATION] : await ssdp(2500);
+  for (const loc of locs) {
+    try {
+      const x = await (await fetch(loc, { signal: AbortSignal.timeout(5000) })).text();
+      const sv = [...x.matchAll(/<service>([\s\S]*?)<\/service>/gi)].map(m => m[1]).find(t => /WAN(IP|PPP)Connection/.test(t)); if (!sv) continue;
+      UPNP.svc = /<serviceType>\s*([^<\s]+)/i.exec(sv)[1]; UPNP.ctrl = new URL(/<controlURL>\s*([^<\s]+)/i.exec(sv)[1], (/<URLBase>\s*([^<\s]+)/i.exec(x) || [])[1] || loc).href;
+      UPNP.router = ((/<friendlyName>\s*([^<]+)/i.exec(x) || [])[1] || new URL(loc).hostname).trim().slice(0, 60);
+      UPNP.lan = await localIpTo(new URL(loc).hostname) || (await lanIps())[0]?.ip || null;
+      try { UPNP.ext = (await soap('GetExternalIPAddress')).NewExternalIPAddress || null } catch (e) { UPNP.ext = null }
+      UPNP.st = 'ok'; return UPNP;
+    } catch (e) { UPNP.err = e.message }
+  }
+  UPNP.ctrl = null; UPNP.st = locs.length ? 'fehler' : 'keins'; return UPNP;
+}
+const upnpWhy = e => e.code === 606 || e.code === 401 ? 'Der Router erlaubt keine Freigaben per UPnP. FRITZ!Box: Heimnetz → Netzwerk → dieses Gerät bearbeiten → „Selbstständige Portfreigaben für dieses Gerät erlauben“ (bzw. Internet → Freigaben). Andere Router: „UPnP“ in den Einstellungen einschalten.' : e.code === 718 ? 'Dieser Port ist im Router schon für ein anderes Gerät freigegeben. Nimm einen anderen Port oder lösche die alte Freigabe im Router.' : 'Der Router hat abgelehnt: ' + e.message + (e.code ? ' (' + e.code + ')' : '');
+async function upnpMap(port, proto, desc) {
+  const u = await igd(); if (!u.ctrl) throw Error(u.st === 'keins' ? 'Kein Router mit UPnP gefunden. Entweder ist UPnP im Router aus, das Gerät hängt nicht direkt am Router (z. B. mobile Daten, Gast-WLAN) – oder der Router kann es nicht. Dann die Portfreigabe von Hand im Router einrichten.' : 'Router nicht erreichbar: ' + (u.err || u.st));
+  const a = { NewRemoteHost: '', NewExternalPort: port, NewProtocol: proto, NewInternalPort: port, NewInternalClient: u.lan, NewEnabled: 1, NewPortMappingDescription: String(desc || 'Toolbox').slice(0, 60), NewLeaseDuration: 0 };
+  try { await soap('AddPortMapping', a) } catch (e) { if (e.code === 718 || e.code === 606 || e.code === 401) throw Error(upnpWhy(e)); a.NewLeaseDuration = 604800; try { await soap('AddPortMapping', a) } catch (e2) { throw Error(upnpWhy(e2)) } }
+  return { external: u.ext, lan: u.lan, lease: a.NewLeaseDuration };
+}
+async function upnpUnmap(port, proto) { const u = await igd(); if (!u.ctrl) return; try { await soap('DeletePortMapping', { NewRemoteHost: '', NewExternalPort: port, NewProtocol: proto }) } catch (e) { } }
+async function upnpRefresh() { if (!C.upnp.length || STOPPING) return; for (const m of C.upnp) { try { await upnpMap(m.port, m.proto, m.desc); m.ok = true; m.err = '' } catch (e) { m.ok = false; m.err = e.message } } save() }
+setInterval(() => upnpRefresh().catch(() => { }), 30 * 60000).unref();
+// Minecraft-Statusabfrage (Server List Ping): Version, Spieler, MOTD
+function mcPing(port, host, ms) {
+  return new Promise(res => {
+    const vi = n => { const b = []; n >>>= 0; do { let x = n & 0x7f; n >>>= 7; if (n) x |= 0x80; b.push(x) } while (n); return Buffer.from(b) };
+    const str = t => { const b = Buffer.from(t, 'utf8'); return Buffer.concat([vi(b.length), b]) };
+    const pk = (id, d) => { const x = Buffer.concat([vi(id), d]); return Buffer.concat([vi(x.length), x]) };
+    const t0 = Date.now(); let buf = Buffer.alloc(0), done = false; const so = net.connect(port, host || '127.0.0.1');
+    const fin = v => { if (done) return; done = true; try { so.destroy() } catch (e) { } res(v) };
+    so.setTimeout(ms || 3000, () => fin({ online: false, err: 'keine Antwort' }));
+    so.on('error', e => fin({ online: false, err: e.code === 'ECONNREFUSED' ? 'aus' : e.code || e.message }));
+    so.on('connect', () => so.write(Buffer.concat([pk(0, Buffer.concat([vi(767), str(host || '127.0.0.1'), Buffer.from([port >> 8, port & 255]), vi(1)])), pk(0, Buffer.alloc(0))])));
+    so.on('data', d => {
+      buf = Buffer.concat([buf, d]); let o = 0;
+      const rv = () => { let n = 0, sh = 0, b; do { if (o >= buf.length) throw 'more'; b = buf[o++]; n |= (b & 0x7f) << sh; sh += 7 } while (b & 0x80 && sh < 35); return n };
+      try { const len = rv(); if (buf.length < o + len) return; if (rv() !== 0) return fin({ online: false, err: 'unerwartete Antwort' }); const sl = rv(), j = JSON.parse(buf.slice(o, o + sl).toString('utf8'));
+        const flat = x => typeof x === 'string' ? x : !x ? '' : (x.text || '') + (x.extra || []).map(flat).join('');
+        fin({ online: true, ms: Date.now() - t0, version: j.version && j.version.name, protocol: j.version && j.version.protocol, players: { online: (j.players || {}).online || 0, max: (j.players || {}).max || 0, sample: ((j.players || {}).sample || []).map(p => p.name).slice(0, 20) }, motd: flat(j.description).replace(/§./g, '').trim(), favicon: typeof j.favicon === 'string' && j.favicon.length < 40000 ? j.favicon : null })
+      } catch (e) { if (e !== 'more') fin({ online: false, err: 'unlesbare Antwort' }) }
+    });
+  });
+}
+const tcpOpen = (port, ms) => new Promise(res => { const so = net.connect(port, '127.0.0.1'); const fin = v => { try { so.destroy() } catch (e) { } res(v) }; so.setTimeout(ms || 2000, () => fin(false)); so.on('connect', () => fin(true)); so.on('error', () => fin(false)) });
+async function probe(s) {
+  const a = allocOf(s), port = a ? a.port : 0, e = EGGS[s.egg] || {}, st = rt(s).state;
+  if (e.nest === 1) return Object.assign({ type: 'minecraft', port, state: st }, st === 'offline' ? { online: false, err: 'aus' } : await mcPing(port));
+  if (s.egg === 7) {
+    const pw = envOf(s).LAVALINK_PASSWORD || '', o = { type: 'lavalink', port, state: st, password: pw, online: false };
+    if (st === 'offline') return Object.assign(o, { err: 'aus' });
+    try { const h = { Authorization: pw }, v = await fetch('http://127.0.0.1:' + port + '/version', { headers: h, signal: AbortSignal.timeout(3000) }); if (v.status === 401) return Object.assign(o, { online: true, err: 'Passwort passt nicht zu application.yml' });
+      o.version = (await v.text()).trim().slice(0, 40); o.online = true;
+      try { const i = await (await fetch('http://127.0.0.1:' + port + '/v4/info', { headers: h, signal: AbortSignal.timeout(3000) })).json(); o.sources = i.sourceManagers || []; o.plugins = (i.plugins || []).map(p => p.name + ' ' + p.version) } catch (x) { }
+    } catch (x) { o.err = 'startet noch oder antwortet nicht' }
+    return o;
+  }
+  return { type: 'tcp', port, state: st, online: st !== 'offline' && port ? await tcpOpen(port) : false };
+}
+
 /* ---------- Koppeln mit der App ---------- */
 const htmlEsc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-function lanUrls() { if (HOST !== '0.0.0.0') return []; const o = []; for (const l of Object.values(os.networkInterfaces())) for (const a of l || []) if (a.family === 'IPv4' && !a.internal) o.push('http://' + a.address + ':' + PORT); return o }
+function lanUrls() { if (HOST !== '0.0.0.0') return []; const o = []; try { for (const l of Object.values(os.networkInterfaces())) for (const a of l || []) if (a.family === 'IPv4' && !a.internal) o.push('http://' + a.address + ':' + PORT) } catch (e) { } return o }
 function pairInfo() {
   const o = { v: 1, k: C.key, l: 'http://127.0.0.1:' + PORT, n: (os.hostname() || PLAT).slice(0, 40), p: TERMUX ? 'android' : process.platform }; if (TUN.url) o.r = TUN.url; const a = lanUrls(); if (a.length) o.a = a;
   const code = 'HP1' + Buffer.from(JSON.stringify(o)).toString('base64url');
@@ -668,12 +883,29 @@ function restartSelf() {
 
 /* ---------- HTTP-Server ---------- */
 const FAIL = new Map(); // Schutz gegen das Durchprobieren von Schlüsseln
-async function handyApi(req, res, p) {
+async function handyApi(req, res, p, q) {
   const M = req.method;
   if (p === '/info') return send(res, 200, info());
   if (p === '/tunnel' && M === 'POST') { const j = await json(req); C.tunnel = !!j.on; save(); if (C.tunnel) tunnelStart(); else tunnelStop(); await sleep(400); return send(res, 200, info()) }
   if (p === '/update' && M === 'POST') { const j = await json(req), from = String(j.from || C.app || ''); if (!/^https:\/\/|^http:\/\/(127\.0\.0\.1|localhost)[:/]/.test(from)) bad('Unbekannte Quelle für das Update.', 'from'); const r = await selfUpdate(from, !!j.force); send(res, 200, r); if (r.updated) setTimeout(restartSelf, 400); return }
   if (p === '/shutdown' && M === 'POST') { send(res, 202, { ok: true }); setTimeout(() => bye(), 200); return }
+  if (p === '/network' && M === 'GET') {
+    const f = q.get('refresh') === '1', [lan, pub, u] = await Promise.all([lanIps(), publicIp(f), igd(f)]);
+    const cg = u.ext ? (isCgn(u.ext) || isPrivIp(u.ext) || (pub.v4 && u.ext !== pub.v4)) : null;
+    return send(res, 200, { lan, public: { v4: pub.v4, v6: pub.v6, err: pub.err }, upnp: { state: u.st, router: u.router, external: u.ext, lan: u.lan, err: u.err }, cgnat: cg, maps: C.upnp, platform: PLAT, termux: TERMUX });
+  }
+  if (p === '/upnp' && M === 'POST') {
+    const j = await json(req), port = +j.port, protos = j.proto === 'BOTH' ? ['TCP', 'UDP'] : [j.proto === 'UDP' ? 'UDP' : 'TCP'];
+    if (!C.allocs.some(a => a.port === port)) bad('Nur Ports, die zum Panel gehören, lassen sich freigeben.', 'port');
+    const out1 = [];
+    for (const pr of protos) {
+      const i = C.upnp.findIndex(m => m.port === port && m.proto === pr);
+      if (j.on) { let r; try { r = await upnpMap(port, pr, 'Toolbox ' + String(j.name || port).slice(0, 40)) } catch (e) { save(); throw new HErr(502, e.message) } const m = { port, proto: pr, desc: 'Toolbox ' + String(j.name || port).slice(0, 40), ok: true, err: '', at: now(), external: r.external }; if (i >= 0) C.upnp[i] = m; else C.upnp.push(m); out1.push(m) }
+      else { await upnpUnmap(port, pr); if (i >= 0) C.upnp.splice(i, 1) }
+    }
+    save(); return send(res, 200, { ok: true, maps: C.upnp, external: UPNP.ext });
+  }
+  if (p === '/probe' && M === 'GET') { const s = findSrv(q.get('server') || ''); if (!s) throw new HErr(404, 'Server nicht gefunden.'); return send(res, 200, await probe(s)) }
   throw new HErr(404, 'Nicht gefunden.');
 }
 const srv = http.createServer(async (req, res) => {
@@ -698,7 +930,7 @@ const srv = http.createServer(async (req, res) => {
     if (f) FAIL.delete(ip);
     if (p.startsWith('/api/client')) return await client(req, res, p.slice(11), u.searchParams);
     if (p.startsWith('/api/application')) return await application(req, res, p.slice(16), u.searchParams);
-    if (p.startsWith('/api/handy')) return await handyApi(req, res, p.slice(10));
+    if (p.startsWith('/api/handy')) return await handyApi(req, res, p.slice(10), u.searchParams);
     throw new HErr(404, 'Nicht gefunden.');
   } catch (e) {
     if (res.headersSent) { try { res.end() } catch (x) { } return }
@@ -794,6 +1026,7 @@ function panel() {
       } else { if (s.pid) { s.pid = null; save() } if (s.wasRunning && !s.suspended && !s.status) { console.log('  ▶ Starte wieder: ' + s.name); start(s) } }
     }
     if (C.tunnel) tunnelStart();
+    if (C.upnp.length) setTimeout(() => upnpRefresh().catch(() => { }), 4000); // Portfreigaben im Router erneuern
   });
   process.on('SIGINT', bye); process.on('SIGTERM', bye); try { process.on('SIGHUP', bye) } catch (e) { }
 }
