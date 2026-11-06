@@ -471,7 +471,7 @@ const menu=$('#menu'),view=$('#view'),back=$('#back');
 back.innerHTML=ico('back',22);$('#logo').innerHTML=ico('grid',22);
 let curT=null;
 const reset=()=>{if(curT&&curT.unmount){try{curT.unmount()}catch(e){}}curT=null;view.onclick=view.oninput=view.onchange=view.onkeydown=null;delete view.dataset.t;view.innerHTML=''};
-function home(){reset();view.hidden=true;menu.hidden=false;$('#bk').hidden=false;$('#gear').hidden=false;back.hidden=true;$('#logo').hidden=false;$('#title').textContent='Toolbox';$('#sub').textContent='Deine Werkzeuge an einem Ort';navDone()}
+function home(){if(window.tbUpd){location.reload();return}reset();view.hidden=true;menu.hidden=false;$('#bk').hidden=false;$('#gear').hidden=false;back.hidden=true;$('#logo').hidden=false;$('#title').textContent='Toolbox';$('#sub').textContent='Deine Werkzeuge an einem Ort';navDone()}
 function open(t){reset();menu.hidden=true;$('#bk').hidden=true;$('#gear').hidden=true;view.hidden=false;back.hidden=false;$('#logo').hidden=true;$('#title').textContent=t.title;$('#sub').textContent=t.desc;view.dataset.t=t.title;curT=t;t.mount(view);scrollTo(0,0);navArm()}
 menu.onclick=e=>{const b=e.target.closest('.card');if(b)open(TOOLS[b.dataset.i])};
 back.onclick=home;
@@ -5205,7 +5205,7 @@ tool({id:'set',sys:1,icon:'sliders',title:'Einstellungen',desc:'Design, Textgrö
   <label>Standard-Verschlüsselung</label><select id="al">${Object.entries(ALGS).map(([k,v])=>`<option value="${k}"${k===SET.alg?' selected':''}>${v.n}</option>`).join('')}</select>
   <label>Daten</label><button id="rs" class="btn">${ico('trash',18)}Alle Daten zurücksetzen</button>
   <p class="st">Löscht Notizen, eigene Stile, Server-Verbindungen (samt API-Schlüsseln), die Daten der AI Agents (Chats, Arbeitsbereiche, Wissen), Chat-Kontakte samt Verlauf und Einstellungen von diesem Gerät. Erstelle vorher ein Backup. Heruntergeladene KI-Modelle bleiben erhalten – die löschst du unter AI Agents → Modelle.</p>
-  <p class="foot">Toolbox · Version 1.12</p>`;
+  <p class="foot">Toolbox · Version 1.12.1</p>`;
   el.onclick=e=>{const b=e.target.closest('button');if(!b)return;const g=b.closest('.seg');
     if(g){const k=g.dataset.k;SET[k]=k==='z'?+b.dataset.v:b.dataset.v;g.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));saveSet();if(k==='nt'&&SET.nt==='on')askNt(g)}
     else if(b.dataset.ac!=null){SET.ac=+b.dataset.ac;el.querySelectorAll('.sw').forEach(x=>x.classList.toggle('on',x===b));saveSet()}
@@ -5283,6 +5283,15 @@ function hpLink(){const m=/[#&]hp=([A-Za-z0-9_-]+)/.exec(location.hash);if(!m)re
   const t=TOOLS.find(x=>x.id==='srv');if(!t||!window.tbHpPair)return;if(view.dataset.t!==t.title)open(t);setTimeout(()=>window.tbHpPair(m[1]),50)}
 hpLink();addEventListener('hashchange',hpLink); // auch wenn die App schon offen ist
 </script>
-<script>if('serviceWorker' in navigator&&location.protocol.indexOf('http')===0)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))</script>
+<script>if('serviceWorker' in navigator&&location.protocol.indexOf('http')===0)addEventListener('load',()=>{
+  const sw=navigator.serviceWorker,had=!!sw.controller;let done=0;
+  sw.register('sw.js',{updateViaCache:'none'}).then(r=>{
+    /* Beim Zurückkehren in die App (z. B. aus dem Hintergrund) nach einer neuen Version sehen */
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')r.update().catch(()=>{})});
+  }).catch(()=>{});
+  /* Neue Version aktiv: auf dem Startbildschirm gleich neu laden, sonst nur Bescheid geben (nichts geht verloren) */
+  sw.addEventListener('controllerchange',()=>{if(!had||done)return;done=1;
+    if(!document.getElementById('menu').hidden)location.reload();else{window.tbUpd=1;toast('Update geladen – aktiv, sobald du zur Startseite gehst')}});
+})</script>
 </body>
 </html>

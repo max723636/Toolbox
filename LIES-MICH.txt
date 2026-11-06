@@ -1,5 +1,13 @@
 TOOLBOX – so wird daraus eine App
 
+NEU in Version 1.12.1 – Updates kommen sofort an:
+- Bisher konnte die App nach einem Upload auf GitHub noch bis zu 10 Minuten die alte Version zeigen
+  (GitHub Pages erlaubt dem Browser, die Seite so lange zwischenzuspeichern). Jetzt fragt die App
+  bei jedem Öffnen kurz nach, ob es eine neue Version gibt, und lädt sie gleich.
+- Kommt die App aus dem Hintergrund zurück, sucht sie ebenfalls nach einem Update: auf der Startseite
+  lädt sie sich sofort neu, sonst beim nächsten Zurück zur Startseite (nichts geht verloren).
+- Welche Version du hast, steht unten in den Einstellungen („Toolbox · Version …“).
+
 NEU in Version 1.12 – Modul „Auslastung“:
 - Neue Kachel „Auslastung“: CPU (gesamt und je Kern), Arbeitsspeicher, Swap und Speicherplatz live,
   mit Verlauf der letzten 3 Minuten, dazu alle Prozesse – sortierbar nach CPU, RAM oder Swap, mit Suche.
