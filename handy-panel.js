@@ -27,7 +27,7 @@ const net = require('net');
 const { spawn, execFile } = require('child_process');
 const { StringDecoder } = require('string_decoder');
 
-const VERSION = '1.5.1';
+const VERSION = '1.6.0';
 const ARGS = process.argv.slice(2);
 const WITHVAL = ['--port', '--dir', '--wrap', '--app'];
 const POS = ARGS.filter((x, i) => !x.startsWith('--') && !WITHVAL.includes(ARGS[i - 1])); // Wörter, die keine Optionen sind
@@ -1182,6 +1182,76 @@ async function probe(s) {
   return { type: 'tcp', port, state: st, online: st !== 'offline' && port ? await tcpOpen(port) : false };
 }
 
+/* ---------- Auslastung: CPU, Arbeitsspeicher, Swap, Speicherplatz und Prozesse ---------- */
+const SYS = { prevCpu: null, prev: new Map(), t: 0, win: null, users: null };
+const rd = f => { try { return fs.readFileSync(f, 'utf8') } catch (e) { return null } };
+function cpuTimes() { // je Kern {idle,total}; leer, wenn das System es nicht verrät (Android ab 8)
+  try { const c = os.cpus(); if (c.length && c.some(x => x.times.user + x.times.sys > 0)) return c.map(x => { const t = x.times; return { idle: t.idle, total: t.user + t.nice + t.sys + t.idle + t.irq } }) } catch (e) { }
+  return [];
+}
+function memInfo() {
+  const mi = rd('/proc/meminfo');
+  if (mi) { const g = k => { const m = new RegExp('^' + k + ':\\s+(\\d+)', 'm').exec(mi); return m ? +m[1] * 1024 : 0 }; const total = g('MemTotal'), avail = g('MemAvailable') || g('MemFree') + g('Cached') + g('Buffers');
+    return { mem: { total, used: Math.max(0, total - avail), avail, cached: g('Cached') + g('Buffers') }, swap: { total: g('SwapTotal'), used: Math.max(0, g('SwapTotal') - g('SwapFree')) } } }
+  const total = os.totalmem(); let avail = os.freemem(), swap = { total: 0, used: 0 };
+  if (MAC) { const v = xs('vm_stat', []), ps = +((/page size of (\d+)/.exec(v || '') || [])[1] || 4096), pg = k => +((new RegExp(k + ':\\s+(\\d+)').exec(v || '') || [])[1] || 0); if (v) avail = (pg('Pages free') + pg('Pages inactive') + pg('Pages speculative')) * ps;
+    const sw = xs('sysctl', ['-n', 'vm.swapusage']) || '', n = k => { const m = new RegExp(k + ' = ([\\d.]+)([MG])').exec(sw); return m ? +m[1] * (m[2] === 'G' ? 1073741824 : 1048576) : 0 }; swap = { total: n('total'), used: n('used') } }
+  return { mem: { total, used: Math.max(0, total - avail), avail, cached: null }, swap };
+}
+function diskInfo() { try { const st = fs.statfsSync(BASE); return { total: st.blocks * st.bsize, free: st.bavail * st.bsize, path: BASE } } catch (e) { return null } }
+// Linux/Android: Prozesse aus /proc (Android zeigt nur die eigenen – also Termux mit deinen Servern)
+function procLinux() {
+  if (!SYS.users) { SYS.users = {}; for (const l of (rd('/etc/passwd') || '').split('\n')) { const f = l.split(':'); if (f.length > 2) SYS.users[f[2]] = f[0] } }
+  const out = []; let ds = []; try { ds = fs.readdirSync('/proc').filter(d => /^\d+$/.test(d)) } catch (e) { }
+  for (const d of ds) {
+    const st = rd('/proc/' + d + '/stat'); if (!st) continue; const i = st.lastIndexOf(')'), f = st.slice(i + 2).split(' ');
+    const ss = rd('/proc/' + d + '/status') || '', g = k => { const m = new RegExp('^' + k + ':\\s+(\\d+)', 'm').exec(ss); return m ? +m[1] * 1024 : 0 };
+    const uid = (/^Uid:\s+(\d+)/m.exec(ss) || [])[1], cmd = (rd('/proc/' + d + '/cmdline') || '').replace(/\0+/g, ' ').trim();
+    out.push({ pid: +d, ppid: +f[1], name: st.slice(st.indexOf('(') + 1, i), state: f[0], ticks: +f[11] + +f[12], rss: g('VmRSS'), swap: g('VmSwap'), user: TERMUX ? 'termux' : (SYS.users[uid] || uid || ''), cmd: cmd.slice(0, 300) });
+  }
+  return out;
+}
+function procMac() { const t = xs('ps', ['-axo', 'pid=,ppid=,pcpu=,rss=,user=,comm=']) || ''; return t.split('\n').map(l => /^\s*(\d+)\s+(\d+)\s+([\d.]+)\s+(\d+)\s+(\S+)\s+(.+)$/.exec(l)).filter(Boolean).map(m => ({ pid: +m[1], ppid: +m[2], pcpu: +m[3], rss: +m[4] * 1024, swap: null, user: m[5], name: path.basename(m[6].trim()), cmd: m[6].trim().slice(0, 300) })) }
+async function procWin() { // Windows: einmal PowerShell fragen (dauert ~1 s) – mit kurzem Zwischenspeicher
+  if (SYS.win && Date.now() - SYS.win.t < 2500) return SYS.win;
+  const ps = "$p=Get-CimInstance Win32_PerfFormattedData_PerfProc_Process|?{$_.IDProcess -ne 0 -and $_.Name -ne '_Total'}|select IDProcess,CreatingProcessID,Name,PercentProcessorTime,WorkingSetPrivate,WorkingSet;$c=(Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor|select Name,PercentProcessorTime);$f=Get-CimInstance Win32_PageFileUsage|select AllocatedBaseSize,CurrentUsage;@{p=@($p);c=@($c);f=@($f)}|ConvertTo-Json -Compress -Depth 3";
+  const txt = await new Promise(res => execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true, maxBuffer: 16 * 1048576, timeout: 15000 }, (e, so) => res(e ? '' : so)));
+  let j = {}; try { j = JSON.parse(txt) } catch (e) { }
+  const cores = os.cpus().length || 1, cs = (j.c || []), tot = cs.find(x => x.Name === '_Total');
+  SYS.win = { t: Date.now(), procs: (j.p || []).map(x => ({ pid: x.IDProcess, ppid: x.CreatingProcessID, name: String(x.Name || '').replace(/#\d+$/, ''), pcpu: (+x.PercentProcessorTime || 0) / cores, rss: +x.WorkingSetPrivate || +x.WorkingSet || 0, swap: null, user: '', cmd: '' })), cpu: tot ? +tot.PercentProcessorTime : null, per: cs.filter(x => x.Name !== '_Total').sort((a, b) => (+a.Name || 0) - (+b.Name || 0)).map(x => +x.PercentProcessorTime || 0), swap: (j.f || []).reduce((a, x) => ({ total: a.total + (+x.AllocatedBaseSize || 0) * 1048576, used: a.used + (+x.CurrentUsage || 0) * 1048576 }), { total: 0, used: 0 }) };
+  return SYS.win;
+}
+async function sysSnapshot() {
+  const now = Date.now(), lin = !WIN && !MAC;
+  let c1 = cpuTimes(), raw = lin ? procLinux() : MAC ? procMac() : null, win = WIN ? await procWin() : null;
+  if (lin && (!SYS.t || now - SYS.t > 30000)) { // erste Messung: kurz warten, damit es einen Vergleichswert gibt
+    SYS.prevCpu = c1; SYS.prev = new Map(raw.map(p => [p.pid, p.ticks])); SYS.t = now; await sleep(500); c1 = cpuTimes(); raw = procLinux();
+  }
+  const t1 = Date.now(), dt = Math.max(0.2, (t1 - (SYS.t || t1)) / 1000), per = [];
+  if (c1.length && SYS.prevCpu && SYS.prevCpu.length === c1.length) c1.forEach((c, i) => { const p = SYS.prevCpu[i], dTot = c.total - p.total, dIdle = c.idle - p.idle; per.push(dTot > 0 ? Math.max(0, Math.min(100, (1 - dIdle / dTot) * 100)) : 0) });
+  let procs = [];
+  if (lin) { const hz = 100, prev = SYS.prev; procs = raw.map(p => { const q = prev.get(p.pid); return Object.assign(p, { cpu: q != null ? Math.max(0, (p.ticks - q) / hz / dt * 100) : 0 }) }); SYS.prev = new Map(raw.map(p => [p.pid, p.ticks])) }
+  else procs = (MAC ? raw : win.procs).map(p => Object.assign(p, { cpu: p.pcpu || 0 }));
+  SYS.prevCpu = c1; SYS.t = t1;
+  // Server und Panel markieren (ganzer Prozessbaum unter dem Wächter des Servers)
+  const kids = new Map(); for (const p of procs) { if (!kids.has(p.ppid)) kids.set(p.ppid, []); kids.get(p.ppid).push(p.pid) }
+  const tag = new Map(); for (const s of C.servers) { const root = s.pid || rt(s).pid; if (!root) continue; const st = [root]; while (st.length) { const x = st.pop(); if (tag.has(x)) continue; tag.set(x, s.name); for (const k of kids.get(x) || []) st.push(k) } }
+  const cores = (os.cpus() || []).length || per.length || 1, mi = memInfo(), sw = WIN ? win.swap : mi.swap;
+  let cpu = WIN ? win.cpu : per.length ? per.reduce((a, b) => a + b, 0) / per.length : null; const perOut = WIN ? win.per : per;
+  const part = cpu == null; if (part) cpu = Math.min(100, procs.reduce((a, p) => a + p.cpu, 0) / cores); // Android: nur die sichtbaren Prozesse
+  const list = procs.map(p => ({ pid: p.pid, ppid: p.ppid, name: p.name, cmd: p.cmd, user: p.user, state: p.state || '', cpu: Math.round(p.cpu * 10) / 10, rss: p.rss, swap: p.swap, srv: tag.get(p.pid) || null, self: p.pid === process.pid }));
+  list.sort((a, b) => b.cpu - a.cpu || b.rss - a.rss);
+  let load = null; try { const l = os.loadavg(); if (l.some(x => x > 0)) load = l.map(x => Math.round(x * 100) / 100) } catch (e) { }
+  return { t: t1, platform: PLAT, host: os.hostname(), uptime: Math.round(os.uptime()), cpu: { model: ((os.cpus() || [])[0] || {}).model || '', cores, usage: Math.round(cpu * 10) / 10, per: perOut.map(x => Math.round(x)), partial: part, load },
+    mem: mi.mem, swap: sw, disk: diskInfo(), procs: list.slice(0, 200), procCount: list.length, limited: TERMUX };
+}
+async function killProc(pid, force) {
+  pid = +pid; if (!(pid > 1) || pid === process.pid) throw new HErr(400, 'Diesen Prozess kann das Panel nicht beenden.');
+  const s = C.servers.find(x => (x.pid || rt(x).pid) === pid); if (s) throw new HErr(400, 'Das ist der Wächter von „' + s.name + '“ – stoppe den Server lieber in der App.');
+  if (WIN) { await new Promise((res, rej) => execFile('taskkill', ['/PID', String(pid)].concat(force ? ['/F'] : []), { windowsHide: true }, e => e ? rej(new HErr(400, 'Beenden nicht möglich (Rechte?).')) : res())); return }
+  try { process.kill(pid, force ? 'SIGKILL' : 'SIGTERM') } catch (e) { throw new HErr(400, e.code === 'EPERM' ? 'Keine Berechtigung – der Prozess gehört einem anderen Benutzer oder dem System.' : e.code === 'ESRCH' ? 'Der Prozess läuft nicht mehr.' : e.message) }
+}
+
 /* ---------- Koppeln mit der App ---------- */
 const htmlEsc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 function lanUrls() { if (HOST !== '0.0.0.0') return []; const o = []; try { for (const l of Object.values(os.networkInterfaces())) for (const a of l || []) if (a.family === 'IPv4' && !a.internal) o.push('http://' + a.address + ':' + PORT) } catch (e) { } return o }
@@ -1256,6 +1326,8 @@ async function handyApi(req, res, p, q) {
     }
     save(); return send(res, 200, { ok: true, maps: C.upnp, external: UPNP.ext });
   }
+  if (p === '/system' && M === 'GET') return send(res, 200, await sysSnapshot());
+  if (p === '/kill' && M === 'POST') { const j = await json(req); await killProc(j.pid, !!j.force); return send(res, 200, { ok: true }) }
   if (p === '/probe' && M === 'GET') { const s = findSrv(q.get('server') || ''); if (!s) throw new HErr(404, 'Server nicht gefunden.'); return send(res, 200, await probe(s)) }
   throw new HErr(404, 'Nicht gefunden.');
 }
