@@ -27,7 +27,7 @@ const net = require('net');
 const { spawn, execFile } = require('child_process');
 const { StringDecoder } = require('string_decoder');
 
-const VERSION = '1.5.0';
+const VERSION = '1.5.1';
 const ARGS = process.argv.slice(2);
 const WITHVAL = ['--port', '--dir', '--wrap', '--app'];
 const POS = ARGS.filter((x, i) => !x.startsWith('--') && !WITHVAL.includes(ARGS[i - 1])); // Wörter, die keine Optionen sind
@@ -114,11 +114,14 @@ const EGGS = {
     { name: 'YouTube-Plugin', env: 'YOUTUBE_PLUGIN', def: 'true', desc: 'true = YouTube über das offizielle Plugin „youtube-source“ (empfohlen)', rules: 'required|in:true,false' }], install: 'lavalink' },
   6: { nest: 2, name: 'Eigener Befehl', description: 'Startet einen beliebigen Befehl (Standard: ' + (WIN ? 'start.cmd' : 'start.sh') + ').', image: 'termux/shell', startup: WIN ? 'start.cmd' : 'sh start.sh', stop: '^C', vars: [], install: 'shell' }
 };
+// Läuft diese Vorlage auf diesem Gerät? (null = ja, sonst der Grund)
+const X64 = process.arch === 'x64';
+const eggUnsupported = e => !e ? null : e.bedrock && !((WIN || (process.platform === 'linux' && !TERMUX)) && X64) ? 'Der offizielle Bedrock-Server von Mojang läuft nur auf Windows/Linux-PCs mit Intel/AMD-Prozessor – nicht auf ' + PLAT + ' (' + process.arch + '). Fürs Handy: einen Paper- oder Fabric-Server anlegen und in der App unter Minecraft → „Bedrock-Spieler erlauben“ Geyser einschalten.' : e.install === 'ts3' && (TERMUX || !(X64 || process.arch === 'ia32')) ? 'TeamSpeak 3 gibt es nur für Windows, Linux und Mac mit Intel/AMD-Prozessor – nicht für ' + PLAT + ' (' + process.arch + ').' : null;
 const JIMG = { 'Java automatisch (empfohlen)': 'termux/java', 'Java 25': 'java25', 'Java 21': 'java21', 'Java 17': 'java17', 'Java 11': 'java11', 'Java 8': 'java8' };
 const imgsOf = e => e && e.image === 'termux/java' ? JIMG : { [(e && e.name) || 'Termux']: (e && e.image) || 'termux/shell' };
 const eggAttr = (id, inclVars) => {
   const e = EGGS[id]; if (!e) return null;
-  const a = { id, uuid: 'egg-' + id, name: e.name, nest: e.nest, author: 'handy-panel', description: e.description, docker_image: e.image, docker_images: imgsOf(e), config: {}, startup: e.startup, script: {}, created_at: now(), updated_at: now() };
+  const a = { id, uuid: 'egg-' + id, name: e.name, nest: e.nest, author: 'handy-panel', description: e.description, docker_image: e.image, docker_images: imgsOf(e), toolbox_unsupported: eggUnsupported(e), config: {}, startup: e.startup, script: {}, created_at: now(), updated_at: now() };
   if (inclVars) a.relationships = { variables: { object: 'list', data: e.vars.map((v, i) => ({ object: 'egg_variable', attributes: { id: id * 10 + i, egg_id: id, name: v.name, description: v.desc, env_variable: v.env, default_value: v.def, user_viewable: true, user_editable: true, rules: v.rules } })) } };
   return { object: 'egg', attributes: a };
 };
@@ -891,7 +894,7 @@ async function client(req, res, p, q) {
   if (sub.startsWith('/network/allocations')) {
     const L = () => send(res, 200, list(allocsOf(s).map(a => ({ object: 'allocation', attributes: allocAttr(a, s) }))));
     if (sub === '/network/allocations' && M === 'GET') return L();
-    if (sub === '/network/allocations' && M === 'POST') { if ((s.extra || []).length >= 4) throw new HErr(400, 'Mehr als 5 Ports pro Server gehen nicht.'); const a = C.allocs.find(x => !usedBy(x.id)); if (!a) throw new HErr(400, 'Kein freier Port mehr. Lege im Admin-Bereich (Nodes → Ports) weitere an.'); s.extra = (s.extra || []).concat(a.id); save(); return send(res, 200, { object: 'allocation', attributes: allocAttr(a, s) }) }
+    if (sub === '/network/allocations' && M === 'POST') { if ((s.extra || []).length >= 4) throw new HErr(400, 'Mehr als 5 Ports pro Server gehen nicht.'); let want = 0; try { want = +(await json(req)).port || 0 } catch (e) { } if (want && !C.allocs.some(x => x.port === want) && want >= 1024 && want <= 65535) { C.allocs.push({ id: ++C.seq.alloc, ip: '0.0.0.0', alias: null, port: want, notes: null }) } const a = (want && C.allocs.find(x => x.port === want && !usedBy(x.id))) || C.allocs.find(x => !usedBy(x.id)); if (!a) throw new HErr(400, 'Kein freier Port mehr. Lege im Admin-Bereich (Nodes → Ports) weitere an.'); s.extra = (s.extra || []).concat(a.id); save(); return send(res, 200, { object: 'allocation', attributes: allocAttr(a, s) }) }
     const m2 = /^\/network\/allocations\/(\d+)(\/primary)?$/.exec(sub), a = m2 && allocsOf(s).find(x => x.id === +m2[1]); if (!a) throw new HErr(404, 'Diese Adresse gehört nicht zu diesem Server.');
     if (m2[2] && M === 'POST') { if (s.allocation !== a.id) { s.extra = (s.extra || []).filter(x => x !== a.id).concat(s.allocation); s.allocation = a.id; save(); out(s, 'Hauptport ist jetzt ' + a.port + ' – gilt ab dem nächsten Start.', 'daemon') } return send(res, 200, { object: 'allocation', attributes: allocAttr(a, s) }) }
     if (M === 'POST') { const j = await json(req); a.notes = j.notes ? String(j.notes).slice(0, 255) : null; save(); return send(res, 200, { object: 'allocation', attributes: allocAttr(a, s) }) }
@@ -935,7 +938,7 @@ async function application(req, res, p, q) {
   if (p === '/servers' && M === 'GET') return send(res, 200, list(C.servers.map(s => appSrv(s, inc))));
   if (p === '/servers' && M === 'POST') {
     const j = await json(req), e = EGGS[+j.egg];
-    if (!String(j.name || '').trim()) bad('Der Name fehlt.', 'name'); if (!e) bad('Unbekanntes Egg.', 'egg');
+    if (!String(j.name || '').trim()) bad('Der Name fehlt.', 'name'); if (!e) bad('Unbekanntes Egg.', 'egg'); if (eggUnsupported(e)) bad(eggUnsupported(e), 'egg');
     let al = j.allocation && C.allocs.find(a => a.id === +j.allocation.default);
     if (!al && j.deploy) al = C.allocs.find(a => !usedBy(a.id));
     if (!al) bad('Bitte einen freien Port wählen.', 'allocation.default'); if (usedBy(al.id)) bad('Dieser Port ist schon vergeben.', 'allocation.default');
