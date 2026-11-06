@@ -1,5 +1,17 @@
 TOOLBOX – so wird daraus eine App
 
+NEU in Version 1.12 – Modul „Auslastung“:
+- Neue Kachel „Auslastung“: CPU (gesamt und je Kern), Arbeitsspeicher, Swap und Speicherplatz live,
+  mit Verlauf der letzten 3 Minuten, dazu alle Prozesse – sortierbar nach CPU, RAM oder Swap, mit Suche.
+  Prozesse deiner Server sind markiert („Server: …“). Antippen zeigt Details; „Beenden“ bzw. „Sofort
+  beenden (Kill)“ stoppt einen hängenden Prozess.
+- Die Werte kommen vom Handy-Panel des gewählten Geräts (oben auswählbar, auch ein PC oder Server).
+  Ein Browser allein darf die Auslastung nicht auslesen – ohne Panel zeigt das Modul nur, was der Browser
+  verrät (Kerne, ungefährer RAM, Speicher der App, Akku).
+- Android: Keine App darf die Prozesse anderer Apps sehen. Auf dem Handy siehst du deshalb RAM und Swap
+  des ganzen Handys, aber als Prozesse nur Termux (Panel und Server). Auf PC/Linux/Mac siehst du alle.
+  WICHTIG: Handy-Panel aktualisieren (Serverliste → „Jetzt aktualisieren“), die Auslastung gibt es ab 1.6.
+
 NEU in Version 1.11.1:
 - Server-Arten, die auf deinem Gerät nicht laufen (z. B. Bedrock auf dem Handy), sind im Assistenten als
   „nicht auf diesem Gerät“ markiert und lassen sich nicht mehr anlegen – mit Erklärung warum.

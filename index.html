@@ -110,6 +110,15 @@ input[type=range]{padding:0;border:0;background:none;height:30px;accent-color:va
 .stat b{display:block;font-size:15px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bar{height:5px;border-radius:99px;background:var(--ac2);overflow:hidden;margin-top:6px}.bar i{display:block;height:100%;background:var(--ac);width:0;transition:width .5s}
 .bar.hi i{background:#d97706}.bar.cr i{background:#dc2626}
+.sysk{grid-template-columns:repeat(2,1fr)}.sysk .stat b{font-size:20px}.sysk .stat em{display:block;font-style:normal;font-size:12px;color:var(--mu);margin-top:2px}.sysk .tag{margin:6px 0 0;display:inline-block}
+.sysc{margin-top:12px;padding:12px;border:1px solid var(--bd);border-radius:12px;background:var(--cd)}.sysch{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:14px}.sysch span{font-weight:600}.sysch small{color:var(--mu);font-weight:400}
+.sysplot{position:relative;height:84px;margin-top:8px;touch-action:pan-y}.sysplot svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}.sysplot .g{stroke:var(--bd);stroke-width:1;vector-effect:non-scaling-stroke}.sysplot .l{fill:none;stroke:var(--ac);stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}.sysplot .a{fill:var(--ac);opacity:.12}
+.sysplot .yl{position:absolute;left:2px;transform:translateY(-1px);font-size:10.5px;color:var(--mu);font-variant-numeric:tabular-nums}.sysplot .xh{position:absolute;top:0;bottom:0;width:1px;background:var(--mu);pointer-events:none}.sysplot .tt{position:absolute;top:-30px;padding:3px 8px;border-radius:8px;background:var(--tx);color:var(--bg);font-size:12px;white-space:nowrap;pointer-events:none}
+.xl{display:flex;justify-content:space-between;font-size:11px;color:var(--mu);margin-top:4px}
+.cores{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px 12px}.cores small{font-size:11.5px;color:var(--mu)}.cores em{font-style:normal;font-size:12px;font-variant-numeric:tabular-nums}
+.prc{width:100%;text-align:left;font:inherit;color:inherit;background:var(--cd);border:1px solid var(--bd);border-radius:12px;cursor:pointer}.prc .tx{flex:1;min-width:0}.prc .tx b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.prc .tx small{display:block;color:var(--mu);font-size:12px}
+.pbar{display:block;height:4px;border-radius:99px;background:var(--ac2);margin-top:6px;overflow:hidden}.pbar i{display:block;height:100%;background:var(--ac);border-radius:99px}.prc .pv{flex:none;text-align:right;min-width:74px;font-variant-numeric:tabular-nums}.prc .pv b{display:block}.prc .pv small{display:block;color:var(--mu);font-size:12px}
+
 .tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 0 8px;margin-top:10px;scrollbar-width:none;position:sticky;top:calc(80px + env(safe-area-inset-top,0px));background:var(--bg);z-index:3}
 .tabs::-webkit-scrollbar{display:none}.tabs .chipb{flex:none;display:inline-flex;align-items:center;gap:6px}
 .banner{margin-top:12px;padding:10px 12px;border-radius:10px;font-size:13px;background:color-mix(in srgb,#d97706 14%,var(--cd));border:1px solid color-mix(in srgb,#d97706 40%,var(--bd));color:var(--tx)}
@@ -5060,6 +5069,130 @@ tool({id:'ai',icon:'bot',title:'AI Agents',desc:'Lokale KI-Modelle mit Dateien &
 })();
 
 /* ---------- Einstellungen ---------- */
+/* ---------- Auslastung: CPU, Arbeitsspeicher, Swap und Prozesse ----------
+   Ein Browser darf die Auslastung des Geräts nicht auslesen. Die Werte kommen deshalb vom Handy-Panel,
+   das auf dem Gerät läuft (Handy, PC, Server). Ohne Panel zeigt das Modul, was der Browser verrät. */
+(function(){
+"use strict";
+Object.assign(P,{activity:'<path d="M3 12h4l3-8 4 16 3-8h4"/>',pause:'<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>'});
+const K='tb_sys',HN=90,STEP=2000,fe=e=>(e&&e.message)||String(e||'Fehler');
+let V=null,el=null;
+const fmtB=n=>{n=+n||0;const u=['B','KB','MB','GB','TB'];let i=0;while(n>=1024&&i<4){n/=1024;i++}const d=i?(n>=100?0:n>=10?1:2):0;return n.toLocaleString('de-DE',{minimumFractionDigits:d,maximumFractionDigits:d})+' '+u[i]};
+const fmtP=v=>(v==null||isNaN(v))?'–':(v>=10?Math.round(v):(Math.round(v*10)/10)).toLocaleString('de-DE')+' %';
+const fmtUp=s=>{s=Math.floor(s||0);const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?d+' T '+h+' Std':h?h+' Std '+m+' Min':m+' Min'};
+const sev=v=>v>=90?'cr':v>=75?'hi':'';
+const sevTag=v=>v>=90?'<span class="tag r">kritisch</span>':v>=75?'<span class="tag w">hoch</span>':'';
+const pr=()=>window.tbSrv?tbSrv.profiles().filter(p=>p.hp):[];
+function mount(root){
+  el=root;const c=store.get(K,{});
+  V={src:c.src||null,sort:c.sort||'cpu',q:'',d:null,err:null,hist:[],paused:false,gen:0,busy:false,bw:null};
+  const ps=pr();if(!V.src||(V.src!=='browser'&&!ps.some(p=>p.id===V.src)))V.src=ps[0]?ps[0].id:'browser';
+  skeleton();tick();V.iv=setInterval(()=>{if(!document.hidden&&!V.paused)tick()},STEP);
+  el.onclick=onClick;el.oninput=e=>{if(e.target.id==='sysq'){V.q=e.target.value;drawProcs()}};
+  el.onchange=e=>{if(e.target.id==='sysrc'){V.src=e.target.value;V.d=null;V.err=null;V.hist=[];save();skeleton();tick()}};
+}
+function unmount(){clearInterval(V&&V.iv);if(V)V.gen++}
+const save=()=>store.set(K,{src:V.src,sort:V.sort});
+function skeleton(){
+  const ps=pr(),br=V.src==='browser';
+  el.innerHTML=`<div class="addrow" style="margin-top:6px"><select id="sysrc" style="flex:1" aria-label="Gerät">${ps.map(p=>`<option value="${esc(p.id)}"${p.id===V.src?' selected':''}>${esc(p.name)}</option>`).join('')}<option value="browser"${br?' selected':''}>Dieser Browser (eingeschränkt)</option></select>${br?'':`<button class="iconbtn" data-s="pause" aria-label="${V.paused?'Weiter':'Anhalten'}">${ico(V.paused?'play':'pause',18)}</button>`}</div>
+  <div id="syshd"></div><div class="stats sysk" id="systl"></div><div id="sysch"></div><div id="syscores"></div>
+  ${br?'':`<div class="sv-h" style="margin-top:16px"><h2 style="font-size:17px">Prozesse</h2><span class="badge" id="syspc"></span></div>
+  <div class="seg" id="syssort" style="margin-top:8px">${[['cpu','CPU'],['rss','RAM'],['swap','Swap']].map(([k,l])=>`<button data-v="${k}"${V.sort===k?' class="on"':''}>${l}</button>`).join('')}</div>
+  <input id="sysq" placeholder="Prozess suchen …" value="${esc(V.q)}" autocomplete="off" style="margin-top:10px">
+  <div class="list" id="syspl"></div><p class="st" id="sysnote"></p>`}`;
+  draw();
+}
+async function tick(){
+  if(V.busy)return;const g=V.gen,src=V.src;V.busy=true;
+  try{
+    if(src==='browser')V.bw=await browserInfo();
+    else{const d=await tbSrv.handy(src,'system',null,{timeout:20000});if(g!==V.gen||src!==V.src)return;V.d=d;V.err=null;V.hist.push({t:d.t,cpu:d.cpu.usage,mem:d.mem.total?d.mem.used/d.mem.total*100:0});if(V.hist.length>HN)V.hist.shift()}
+  }catch(e){if(g!==V.gen)return;V.err=e&&e.status===404?'old':fe(e)}
+  finally{V.busy=false}
+  if(g===V.gen&&src===V.src&&el&&el.isConnected)draw();
+}
+async function browserInfo(){
+  const o={cores:navigator.hardwareConcurrency||null,mem:navigator.deviceMemory||null,heap:performance.memory?{used:performance.memory.usedJSHeapSize,limit:performance.memory.jsHeapSizeLimit}:null,st:null,bat:null,net:(navigator.connection&&navigator.connection.effectiveType)||null};
+  try{if(navigator.storage&&navigator.storage.estimate){const e=await navigator.storage.estimate();o.st={used:e.usage||0,quota:e.quota||0}}}catch(e){}
+  try{if(navigator.getBattery){const b=await navigator.getBattery();o.bat={level:Math.round(b.level*100),charging:b.charging}}}catch(e){}
+  return o}
+const tile=(label,val,sub,p,extra)=>`<div class="stat"><small>${label}</small><b>${val}</b>${sub?`<em>${sub}</em>`:''}${p!=null?`<div class="bar${sev(p)?' '+sev(p):''}" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(p)}" aria-label="${esc(label)}"><i style="width:${Math.max(0,Math.min(100,p)).toFixed(1)}%"></i></div>`:''}${extra||''}</div>`;
+function draw(){
+  if(!el||!el.isConnected)return;
+  const hd=$('#syshd',el),tl=$('#systl',el),ch=$('#sysch',el),co=$('#syscores',el);if(!hd)return;
+  if(V.src==='browser'){
+    const b=V.bw||{};
+    hd.innerHTML=`<div class="banner">Ein Browser darf aus Sicherheitsgründen <b>nicht</b> auslesen, wie stark CPU und Arbeitsspeicher ausgelastet sind – und schon gar nicht, welche Apps wie viel brauchen. Das kann das <b>Handy-Panel</b>, das auf deinem Gerät läuft (Handy, PC oder Server).${pr().length?'':`<button class="btn" data-s="hp">${ico('server',18)}Handy-Panel einrichten</button>`}</div>`;
+    tl.innerHTML=tile('Prozessorkerne',b.cores?String(b.cores):'–','laut Browser',null)+tile('Arbeitsspeicher',b.mem?'ca. '+b.mem+' GB':'–','grobe Angabe des Browsers',null)
+      +(b.heap?tile('Speicher dieser App',fmtB(b.heap.used),'von '+fmtB(b.heap.limit)+' (JavaScript)',b.heap.used/b.heap.limit*100):'')
+      +(b.st?tile('Speicher der Toolbox',fmtB(b.st.used),'von '+fmtB(b.st.quota)+' erlaubt',b.st.quota?b.st.used/b.st.quota*100:null):'')
+      +(b.bat?tile('Akku',b.bat.level+' %',b.bat.charging?'lädt':'entlädt',null):'');
+    ch.innerHTML='';co.innerHTML='';return}
+  const d=V.d;
+  if(V.err==='old'){hd.innerHTML=`<div class="banner"><b>Dein Handy-Panel ist zu alt.</b> Die Auslastung gibt es ab Version 1.6. Aktualisieren: Werkzeug <b>Server</b> → in der Serverliste „Jetzt aktualisieren“.<button class="btn" data-s="srv">${ico('server',18)}Zum Werkzeug Server</button></div>`;tl.innerHTML='';ch.innerHTML='';co.innerHTML='';drawProcs();return}
+  if(!d){hd.innerHTML=V.err?`<div class="banner er"><b>Keine Verbindung zum Panel.</b> ${esc(V.err)}</div>`:'<p class="empty">Messe …</p>';tl.innerHTML='';ch.innerHTML='';co.innerHTML='';drawProcs();return}
+  const c=d.cpu,m=d.mem,sw=d.swap||{total:0,used:0},dk=d.disk,mp=m.total?m.used/m.total*100:0,sp=sw.total?sw.used/sw.total*100:0;
+  hd.innerHTML=(V.err?`<div class="banner er">Aktualisieren fehlgeschlagen: ${esc(V.err)} – du siehst die letzten Werte.</div>`:'')
+    +`<p class="sv-sub" style="margin-top:10px">${esc(d.host)} · ${esc(d.platform)} · läuft seit ${fmtUp(d.uptime)}${c.load?' · Last '+c.load.map(x=>x.toLocaleString('de-DE')).join(' / '):''}${V.paused?' · <b>angehalten</b>':''}</p>`;
+  tl.innerHTML=tile('CPU',fmtP(c.usage),(c.cores||'?')+' Kerne'+(c.partial?' · nur Termux-Prozesse':''),c.usage,sevTag(c.usage))
+    +tile('Arbeitsspeicher',fmtB(m.used),'von '+fmtB(m.total)+' · '+fmtP(mp),mp,sevTag(mp))
+    +(sw.total?tile('Swap',fmtB(sw.used),'von '+fmtB(sw.total)+' · '+fmtP(sp),sp,sevTag(sp)):tile('Swap','keiner','nicht eingerichtet',null))
+    +(dk?tile('Speicherplatz',fmtB(dk.free)+' frei','von '+fmtB(dk.total),dk.total?(1-dk.free/dk.total)*100:null,dk.total?sevTag((1-dk.free/dk.total)*100).replace('kritisch','fast voll'):''):'');
+  ch.innerHTML=chart('CPU-Auslastung',V.hist.map(h=>h.cpu),'cpu')+chart('Arbeitsspeicher belegt',V.hist.map(h=>h.mem),'mem');
+  if(V.hov){const pl=el.querySelector('.sysplot[data-k="'+V.hov.k+'"]');if(pl)hover(pl,V.hov.x)}
+  co.innerHTML=c.per&&c.per.length>1?`<details class="dt"${V.coreOpen?' open':''} id="syscd"><summary>Je Prozessorkern</summary><div class="cores">${c.per.map((v,i)=>`<div><small>Kern ${i+1}</small><div class="bar${sev(v)?' '+sev(v):''}"><i style="width:${v}%"></i></div><em>${v} %</em></div>`).join('')}</div>${c.model?`<p class="st">${esc(c.model)}</p>`:''}</details>`:'';
+  drawProcs();
+}
+// Liniendiagramm (eine Reihe, 0–100 %) mit Fadenkreuz und Tooltip
+function chart(title,vals,k){
+  const n=vals.length,W=300,Hh=80,x=i=>n<2?W:(i+(HN-n))/(HN-1)*W,y=v=>Hh-Math.max(0,Math.min(100,v||0))/100*Hh;
+  const pts=vals.map((v,i)=>x(i).toFixed(1)+','+y(v).toFixed(1)).join(' '),last=vals[n-1],avg=n?vals.reduce((a,b)=>a+(b||0),0)/n:0,max=n?Math.max(...vals.map(v=>v||0)):0;
+  return`<div class="sysc" data-k="${k}"><div class="sysch"><b>${title}</b><span>${fmtP(last)} <small>· Ø ${fmtP(avg)} · max ${fmtP(max)}</small></span></div>
+  <div class="sysplot" data-k="${k}" role="img" aria-label="${esc(title)}: aktuell ${fmtP(last)}, Durchschnitt ${fmtP(avg)}, Höchstwert ${fmtP(max)} in den letzten ${Math.round(n*STEP/1000)} Sekunden">
+  <svg viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none" aria-hidden="true"><line x1="0" y1="${Hh/2}" x2="${W}" y2="${Hh/2}" class="g"/><line x1="0" y1="0.5" x2="${W}" y2="0.5" class="g"/>${n>1?`<polygon points="${x(0).toFixed(1)},${Hh} ${pts} ${x(n-1).toFixed(1)},${Hh}" class="a"/><polyline points="${pts}" class="l"/>`:''}</svg>
+  <span class="yl" style="top:0">100 %</span><span class="yl" style="top:50%">50 %</span><i class="xh" hidden></i><div class="tt" hidden></div></div>
+  <div class="xl"><span>vor ${Math.round(HN*STEP/60000)} Min.</span><span>jetzt</span></div></div>`}
+function drawProcs(){
+  const L=$('#syspl',el);if(!L)return;const d=V.d,pc=$('#syspc',el),nt=$('#sysnote',el);
+  if(!d){L.innerHTML='';if(pc)pc.textContent='';return}
+  const q=V.q.trim().toLowerCase(),key=V.sort,val=p=>key==='cpu'?p.cpu:key==='rss'?p.rss:(p.swap||0);
+  const all=d.procs.filter(p=>(p.rss>0||p.cmd||p.cpu>0)&&(!q||(p.name+' '+p.cmd+' '+(p.srv||'')+' '+p.pid).toLowerCase().includes(q))).sort((a,b)=>val(b)-val(a)||b.rss-a.rss); // Kernel-Threads (0 B, ohne Befehl) ausblenden
+  let l=all.slice(0,V.all||q?120:25);
+  const mx=Math.max(1e-9,...l.map(val)),noSwap=key==='swap'&&d.procs.every(p=>p.swap==null);
+  pc.textContent=d.procCount+(d.procCount>d.procs.length?' (Top '+d.procs.length+')':'');
+  L.innerHTML=noSwap?'<p class="empty">Dieses System verrät den Swap je Prozess nicht.</p>':l.map(p=>`<button class="item prc" data-pid="${p.pid}"><span class="tx"><b>${esc(p.name)}${p.srv?`<span class="tag g">Server: ${esc(p.srv)}</span>`:''}${p.self?'<span class="tag">Handy-Panel</span>':''}</b><small>PID ${p.pid}${p.user?' · '+esc(p.user):''}${p.state==='Z'?' · beendet (Zombie)':''}</small><span class="pbar"><i style="width:${(val(p)/mx*100).toFixed(1)}%"></i></span></span><span class="pv"><b>${key==='cpu'?fmtP(p.cpu):key==='rss'?fmtB(p.rss):p.swap==null?'–':fmtB(p.swap)}</b><small>${key==='cpu'?fmtB(p.rss):fmtP(p.cpu)}</small></span></button>`).join('')+(l.length?'':'<p class="empty">Nichts gefunden.</p>')+(!noSwap&&all.length>l.length?`<button class="btn" data-s="all">${ico('plus',18)}Alle anzeigen (${all.length})</button>`:'');
+  nt.innerHTML=(d.limited?'<b>Android:</b> Aus Sicherheitsgründen sieht keine App die Prozesse anderer Apps – hier stehen nur die Prozesse von Termux (Panel und deine Server). Arbeitsspeicher und Swap oben gelten für das ganze Handy. ':'')+'CPU je Prozess: 100 % = ein Prozessorkern voll ausgelastet (wie bei „top“).';
+}
+async function procMenu(pid){
+  const p=V.d&&V.d.procs.find(x=>x.pid===pid);if(!p)return;
+  const a=await UI.ask({title:p.name,desc:`<div class="kv"><span>PID</span><span>${p.pid}</span><span></span><span>Eltern-PID</span><span>${p.ppid}</span><span></span>${p.user?`<span>Benutzer</span><span>${esc(p.user)}</span><span></span>`:''}<span>CPU</span><span>${fmtP(p.cpu)}</span><span></span><span>RAM</span><span>${fmtB(p.rss)}</span><span></span>${p.swap!=null?`<span>Swap</span><span>${fmtB(p.swap)}</span><span></span>`:''}</div>${p.cmd?`<div class="srcbox" style="margin-top:10px;white-space:pre-wrap;word-break:break-all;max-height:140px;overflow:auto">${esc(p.cmd)}</div>`:''}${p.srv?`<p class="st">Gehört zum Server <b>${esc(p.srv)}</b> – stoppe ihn besser im Werkzeug Server.</p>`:''}`,
+    fields:p.self?[]:[{id:'k',type:'select',label:'Aktion',value:'',opts:[['','Nichts tun'],['term','Beenden (fragt das Programm höflich)'],['kill','Sofort beenden (Kill)']]}],ok:p.self?'OK':'Ausführen',no:'Schließen'});
+  if(!a||!a.k)return;
+  if(a.k==='kill'&&!await UI.yes('Sofort beenden?','<b>'+esc(p.name)+'</b> wird ohne Speichern beendet. Ungespeicherte Daten gehen verloren.','Kill',true))return;
+  try{await tbSrv.handy(V.src,'kill',null,{method:'POST',json:{pid:p.pid,force:a.k==='kill'}});toast('Signal gesendet');setTimeout(tick,800)}catch(e){UI.info('Nicht möglich',esc(fe(e)))}
+}
+function onClick(e){
+  const so=e.target.closest('#syssort button');if(so){V.sort=so.dataset.v;save();el.querySelectorAll('#syssort button').forEach(b=>b.classList.toggle('on',b===so));drawProcs();return}
+  const sm=e.target.closest('#syscd summary');if(sm){V.coreOpen=!$('#syscd',el).open;return}
+  const pi=e.target.closest('.prc');if(pi){procMenu(+pi.dataset.pid);return}
+  const b=e.target.closest('[data-s]');if(!b)return;const a=b.dataset.s;
+  if(a==='pause'){V.paused=!V.paused;skeleton();if(!V.paused)tick()}
+  else if(a==='all'){V.all=true;drawProcs()}
+  else if(a==='hp'||a==='srv'){const t=TOOLS.find(x=>x.id==='srv');if(t)open(t)}
+}
+// Fadenkreuz + Tooltip über den Diagrammen
+document.addEventListener('pointermove',e=>{const pl=e.target.closest&&e.target.closest('.sysplot');if(!V||!el)return;if(!pl||!el.contains(pl)){if(V.hov){V.hov=null;el.querySelectorAll('.sysplot .xh,.sysplot .tt').forEach(x=>x.hidden=true)}return}
+  V.hov={k:pl.dataset.k,x:e.clientX};hover(pl,e.clientX)});
+function hover(pl,cx){
+  const r=pl.getBoundingClientRect(),k=pl.dataset.k,vals=V.hist.map(h=>h[k]),n=vals.length;if(n<1||!r.width)return;
+  const pos=(cx-r.left)/r.width*(HN-1)-(HN-n),i=Math.max(0,Math.min(n-1,Math.round(pos))),xh=pl.querySelector('.xh'),tt=pl.querySelector('.tt'),px=((i+(HN-n))/(HN-1))*r.width;
+  xh.hidden=false;xh.style.left=px+'px';tt.hidden=false;const ago=Math.round((n-1-i)*STEP/1000);tt.textContent='';const bb=document.createElement('b');bb.textContent=fmtP(vals[i]);tt.append(bb,document.createTextNode(ago?' · vor '+ago+' s':' · jetzt'));
+  tt.style.left=Math.max(0,Math.min(r.width-tt.offsetWidth,px-tt.offsetWidth/2))+'px'}
+document.addEventListener('pointerleave',e=>{if(V&&e.target&&e.target.classList&&e.target.classList.contains('sysplot')){V.hov=null;e.target.querySelector('.xh').hidden=true;e.target.querySelector('.tt').hidden=true}},true);
+tool({id:'sys',icon:'activity',title:'Auslastung',desc:'CPU, RAM, Swap und Prozesse live',mount,unmount});
+})();
+
 tool({id:'set',sys:1,icon:'sliders',title:'Einstellungen',desc:'Design, Textgröße und Daten',mount(el){
   let arm=0;
   const seg=(k,o)=>`<div class="seg" data-k="${k}">${o.map(([v,l])=>`<button data-v="${v}"${String(SET[k])===String(v)?' class="on"':''}>${l}</button>`).join('')}</div>`;
@@ -5072,7 +5205,7 @@ tool({id:'set',sys:1,icon:'sliders',title:'Einstellungen',desc:'Design, Textgrö
   <label>Standard-Verschlüsselung</label><select id="al">${Object.entries(ALGS).map(([k,v])=>`<option value="${k}"${k===SET.alg?' selected':''}>${v.n}</option>`).join('')}</select>
   <label>Daten</label><button id="rs" class="btn">${ico('trash',18)}Alle Daten zurücksetzen</button>
   <p class="st">Löscht Notizen, eigene Stile, Server-Verbindungen (samt API-Schlüsseln), die Daten der AI Agents (Chats, Arbeitsbereiche, Wissen), Chat-Kontakte samt Verlauf und Einstellungen von diesem Gerät. Erstelle vorher ein Backup. Heruntergeladene KI-Modelle bleiben erhalten – die löschst du unter AI Agents → Modelle.</p>
-  <p class="foot">Toolbox · Version 1.11.1</p>`;
+  <p class="foot">Toolbox · Version 1.12</p>`;
   el.onclick=e=>{const b=e.target.closest('button');if(!b)return;const g=b.closest('.seg');
     if(g){const k=g.dataset.k;SET[k]=k==='z'?+b.dataset.v:b.dataset.v;g.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));saveSet();if(k==='nt'&&SET.nt==='on')askNt(g)}
     else if(b.dataset.ac!=null){SET.ac=+b.dataset.ac;el.querySelectorAll('.sw').forEach(x=>x.classList.toggle('on',x===b));saveSet()}

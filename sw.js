@@ -1,4 +1,4 @@
-const V='toolbox-v1.11.1';
+const V='toolbox-v1.12.0';
 /* Zwischengespeichert werden nur die App selbst und ihre Bibliotheken/Schriften (CDN).
    Anfragen an dein Panel, den Vermittler und die Server-Knoten gehen IMMER direkt ins Netz,
    sonst gäbe es veraltete Serverlisten, Dateien und Konsolen-Zugangsdaten.
