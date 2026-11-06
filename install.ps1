@@ -7,7 +7,7 @@
 #  Optionen vorher setzen, z. B.:
 #    $env:FERN=1; $env:JAVA=1; irm https://max723636.github.io/Toolbox/install.ps1 | iex
 #    FERN=1  Fernzugriff gleich einschalten (sichere https-Adresse fuer unterwegs)
-#    JAVA=1  Java 21 mitinstallieren (fuer Minecraft-Server)
+#    JAVA=1  Java 21 sofort mitinstallieren (sonst laedt das Panel passende Java-Versionen bei Bedarf selbst)
 #    PORT=...  anderer Port (Standard 8090)
 #    APP=...   Adresse deiner Toolbox-App (Standard: https://max723636.github.io/Toolbox/)
 #

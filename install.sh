@@ -7,7 +7,8 @@
 #
 #  Optionen (vor „sh“ schreiben, z. B.  … | FERN=1 JAVA=1 sh ):
 #    FERN=1   Fernzugriff gleich einschalten (sichere https-Adresse für unterwegs)
-#    JAVA=1   Java 21 mitinstallieren (für Minecraft-Server)
+#    JAVA=1   Java fürs Handy mitinstallieren (Termux). Auf PC/Linux/Mac lädt das Panel
+#             die passende Java-Version für jeden Server automatisch.
 #    PORT=…   anderer Port (Standard 8090)
 #    APP=…    Adresse deiner Toolbox-App (Standard: https://max723636.github.io/Toolbox/)
 #
@@ -67,7 +68,7 @@ main() {
   # ---------- Java (nur mit JAVA=1) ----------
   if [ -n "${JAVA:-}" ]; then
     if [ -n "$TERMUX" ]; then
-      step "Installiere Java 21 (Termux)"; pkg install -y openjdk-21 || warn "Java ließ sich nicht installieren – später: pkg install openjdk-21"
+      step "Installiere Java (Termux)"; pkg install -y openjdk-25 || pkg install -y openjdk-21 || warn "Java ließ sich nicht installieren – später: pkg install openjdk-21"
     elif [ "$(javamajor)" -ge 21 ]; then
       ok "Java $(javamajor) ist schon da"
     else

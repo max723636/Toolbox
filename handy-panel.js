@@ -27,7 +27,7 @@ const net = require('net');
 const { spawn, execFile } = require('child_process');
 const { StringDecoder } = require('string_decoder');
 
-const VERSION = '1.4.0';
+const VERSION = '1.5.0';
 const ARGS = process.argv.slice(2);
 const WITHVAL = ['--port', '--dir', '--wrap', '--app'];
 const POS = ARGS.filter((x, i) => !x.startsWith('--') && !WITHVAL.includes(ARGS[i - 1])); // Wörter, die keine Optionen sind
@@ -74,6 +74,8 @@ const MC_VARS = (dflt) => [
   { name: 'Minecraft-Version', env: 'MINECRAFT_VERSION', def: 'latest', desc: '„latest“ = neueste Version, die mit deinem Java läuft. Oder z. B. 1.21.11', rules: 'required|string|max:20' },
   { name: 'Server-Datei', env: 'SERVER_JARFILE', def: dflt || 'server.jar', desc: 'Name der .jar-Datei', rules: 'required|string|max:60' },
   { name: 'Minecraft-EULA akzeptieren', env: 'EULA', def: 'false', desc: 'true = du akzeptierst die Minecraft-EULA (aka.ms/MinecraftEULA). Ohne „true“ startet der Server nicht.', rules: 'required|in:true,false' }];
+const BR_VARS = () => [{ name: 'Minecraft-EULA akzeptieren', env: 'EULA', def: 'false', desc: 'true = du akzeptierst die Minecraft-EULA und Datenschutzerklärung (aka.ms/MinecraftEULA)', rules: 'required|in:true,false' },
+  { name: 'Netzwerk-Protokoll', env: 'BEDROCK_TRANSPORT', def: 'nethernet', desc: 'nethernet = Standard von Mojang (empfohlen) · raknet = klassisches Protokoll (nötig für Status-Abfrage und „Von außen testen“)', rules: 'required|in:raknet,nethernet' }];
 const JAVA_START = 'java -Xms128M -Xmx{{SERVER_MEMORY}}M -jar {{SERVER_JARFILE}} nogui';
 const MODDED_START = 'java -Xms128M -Xmx{{SERVER_MEMORY}}M @start_args.txt nogui'; // Forge/NeoForge: Startparameter aus dem Installer
 const GIT_VARS = () => [
@@ -83,7 +85,7 @@ const GIT_VARS = () => [
 const TOKEN_VAR = { name: 'Bot-Token', env: 'DISCORD_TOKEN', def: '', desc: 'Token aus dem Discord Developer Portal (Bot → Reset Token). Gib ihn niemandem!', rules: 'nullable|string|max:200' };
 // Python: nimmt die eigene Umgebung (.venv), falls vorhanden – sonst das System-Python
 const PY_RUN = f => WIN ? 'if exist .venv\\Scripts\\python.exe (.venv\\Scripts\\python.exe ' + f + ') else (python ' + f + ')' : 'if [ -x .venv/bin/python ]; then exec .venv/bin/python ' + f + '; else exec ' + PY + ' ' + f + '; fi';
-const NESTS = [{ id: 1, name: 'Minecraft', description: 'Minecraft: Java Edition – Server, Mods und Proxy', eggs: [1, 8, 2, 3, 9, 10, 11] }, { id: 2, name: 'Programme', description: 'Eigene Programme, Bots und Webseiten', eggs: [4, 5, 12, 13, 6] }, { id: 3, name: 'Discord & Musik', description: 'Discord-Bots und Musik-Server', eggs: [14, 15, 7] }, { id: 4, name: 'Voice', description: 'Sprach-Server', eggs: [16] }];
+const NESTS = [{ id: 1, name: 'Minecraft', description: 'Minecraft: Java Edition – Server, Mods, Modpacks und Proxy', eggs: [1, 8, 18, 2, 17, 3, 19, 10, 9, 21, 20, 11] }, { id: 5, name: 'Minecraft Bedrock', description: 'Offizieller Bedrock-Server (PC/Linux mit Intel/AMD)', eggs: [22, 23] }, { id: 2, name: 'Programme', description: 'Eigene Programme, Bots und Webseiten', eggs: [4, 5, 12, 13, 6] }, { id: 3, name: 'Discord & Musik', description: 'Discord-Bots und Musik-Server', eggs: [14, 15, 7] }, { id: 4, name: 'Voice', description: 'Sprach-Server', eggs: [16] }];
 const EGGS = {
   1: { nest: 1, mc: 1, name: 'Paper', description: 'Schneller Minecraft-Server mit Plugins (empfohlen).', image: 'termux/java', startup: JAVA_START, stop: 'stop', done: /\)! For help, type/, vars: MC_VARS(), install: 'paper' },
   2: { nest: 1, mc: 1, name: 'Vanilla', description: 'Original-Minecraft-Server von Mojang.', image: 'termux/java', startup: JAVA_START, stop: 'stop', done: /\)! For help, type/, vars: MC_VARS(), install: 'vanilla' },
@@ -91,6 +93,13 @@ const EGGS = {
   8: { nest: 1, mc: 1, name: 'Purpur', description: 'Paper mit vielen Extra-Einstellungen, läuft mit allen Paper-Plugins.', image: 'termux/java', startup: JAVA_START, stop: 'stop', done: /\)! For help, type/, vars: MC_VARS(), install: 'purpur' },
   9: { nest: 1, mc: 1, name: 'Forge', description: 'Minecraft mit Forge-Mods (Modpacks).', image: 'termux/java', startup: MODDED_START, stop: 'stop', done: /\)! For help, type/, vars: MC_VARS().filter(v => v.env !== 'SERVER_JARFILE').concat([{ name: 'Forge-Version', env: 'FORGE_VERSION', def: 'latest', desc: '„latest“ = empfohlene Version für deine Minecraft-Version', rules: 'required|string|max:30' }]), install: 'forge' },
   10: { nest: 1, mc: 1, name: 'NeoForge', description: 'Minecraft mit NeoForge-Mods (Nachfolger von Forge).', image: 'termux/java', startup: MODDED_START, stop: 'stop', done: /\)! For help, type/, vars: MC_VARS().filter(v => v.env !== 'SERVER_JARFILE').concat([{ name: 'NeoForge-Version', env: 'NEOFORGE_VERSION', def: 'latest', desc: '„latest“ = neueste Version für deine Minecraft-Version', rules: 'required|string|max:30' }]), install: 'neoforge' },
+  17: { nest: 1, mc: 1, name: 'Snapshot', description: 'Neueste Test-Version von Minecraft (Vanilla-Snapshot).', image: 'termux/java', startup: JAVA_START, stop: 'stop', done: /\)! For help, type/, vars: [{ name: 'Snapshot-Version', env: 'MINECRAFT_VERSION', def: 'latest', desc: '„latest“ = neuester Snapshot, oder z. B. 26.4-snapshot-7', rules: 'required|string|max:40' }].concat(MC_VARS().slice(1)), install: 'snapshot' },
+  18: { nest: 1, mc: 1, name: 'Spigot', description: 'Klassischer Plugin-Server. Wird bei der Installation mit BuildTools gebaut (dauert 5–15 Minuten, braucht Git).', image: 'termux/java', startup: JAVA_START, stop: 'stop', done: /\)! For help, type/, vars: MC_VARS(), install: 'spigot' },
+  19: { nest: 1, mc: 1, name: 'Quilt', description: 'Minecraft mit Quilt-Mods (läuft auch mit den meisten Fabric-Mods).', image: 'termux/java', startup: MODDED_START, stop: 'stop', done: /\)! For help, type/, vars: MC_VARS().filter(v => v.env !== 'SERVER_JARFILE'), install: 'quilt' },
+  20: { nest: 1, mc: 1, name: 'Arclight', description: 'Mods UND Plugins zugleich (NeoForge/Forge/Fabric + Bukkit-Plugins).', image: 'termux/java', startup: 'java -Xms128M -Xmx{{SERVER_MEMORY}}M -jar arclight.jar nogui', stop: 'stop', done: /\)! For help, type/, vars: MC_VARS().filter(v => v.env !== 'SERVER_JARFILE').concat([{ name: 'Mod-Loader', env: 'ARCLIGHT_LOADER', def: 'neoforge', desc: 'neoforge, forge oder fabric', rules: 'required|in:neoforge,forge,fabric' }]), install: 'arclight' },
+  21: { nest: 1, mc: 1, name: 'Modpack (Modrinth)', description: 'Installiert ein Modpack von modrinth.com samt Mod-Loader und allen Mods.', image: 'termux/java', startup: MODDED_START, stop: 'stop', done: /\)! For help, type/, vars: [{ name: 'Modpack', env: 'MODPACK', def: '', desc: 'Name/Link von modrinth.com (z. B. cobblemon-fabric oder https://modrinth.com/modpack/…) oder Download-Adresse einer .mrpack-Datei', rules: 'required|string|max:300' }, { name: 'Modpack-Version', env: 'MODPACK_VERSION', def: 'latest', desc: '„latest“ = neueste Version des Modpacks', rules: 'required|string|max:60' }, MC_VARS()[2]], install: 'modpack' },
+  22: { nest: 5, bedrock: 1, name: 'Bedrock', description: 'Offizieller Minecraft-Bedrock-Server (Handy, Konsole, Windows). Nur PC/Linux mit Intel/AMD.', image: 'termux/shell', startup: WIN ? 'bedrock_server.exe' : 'LD_LIBRARY_PATH=. ./bedrock_server', stop: 'stop', done: /Server started\./, vars: BR_VARS(), install: 'bedrock' },
+  23: { nest: 5, bedrock: 1, preview: 1, name: 'Bedrock Preview', description: 'Vorschau-Version des Bedrock-Servers (für Spieler mit Minecraft Preview).', image: 'termux/shell', startup: WIN ? 'bedrock_server.exe' : 'LD_LIBRARY_PATH=. ./bedrock_server', stop: 'stop', done: /Server started\./, vars: BR_VARS(), install: 'bedrock' },
   11: { nest: 1, name: 'Velocity (Proxy)', description: 'Verbindet mehrere Minecraft-Server zu einem Netzwerk (Lobby, Survival …).', image: 'termux/java', startup: 'java -Xms128M -Xmx{{SERVER_MEMORY}}M -XX:+UseG1GC -jar {{SERVER_JARFILE}} --port {{SERVER_PORT}}', stop: 'end', done: /Done \(/, vars: [{ name: 'Velocity-Version', env: 'VELOCITY_VERSION', def: 'latest', desc: '„latest“ = neueste Version, die mit deinem Java läuft', rules: 'required|string|max:30' }, { name: 'Server-Datei', env: 'SERVER_JARFILE', def: 'velocity.jar', desc: 'Name der .jar-Datei', rules: 'required|string|max:60' }], install: 'velocity' },
   4: { nest: 2, name: 'Node.js', description: 'JavaScript-Programm oder Bot (Node.js) – optional aus Git.', image: 'termux/node', startup: 'node {{MAIN_FILE}}', stop: '^C', vars: [{ name: 'Startdatei', env: 'MAIN_FILE', def: 'index.js', desc: 'Datei, die gestartet wird', rules: 'required|string|max:100' }].concat(GIT_VARS()), install: 'node' },
   5: { nest: 2, name: 'Python', description: 'Python-Programm oder Bot – optional aus Git.', image: 'termux/python', startup: PY_RUN('{{MAIN_FILE}}'), stop: '^C', vars: [{ name: 'Startdatei', env: 'MAIN_FILE', def: 'main.py', desc: 'Datei, die gestartet wird', rules: 'required|string|max:100' }].concat(GIT_VARS()), install: 'python' },
@@ -105,9 +114,11 @@ const EGGS = {
     { name: 'YouTube-Plugin', env: 'YOUTUBE_PLUGIN', def: 'true', desc: 'true = YouTube über das offizielle Plugin „youtube-source“ (empfohlen)', rules: 'required|in:true,false' }], install: 'lavalink' },
   6: { nest: 2, name: 'Eigener Befehl', description: 'Startet einen beliebigen Befehl (Standard: ' + (WIN ? 'start.cmd' : 'start.sh') + ').', image: 'termux/shell', startup: WIN ? 'start.cmd' : 'sh start.sh', stop: '^C', vars: [], install: 'shell' }
 };
+const JIMG = { 'Java automatisch (empfohlen)': 'termux/java', 'Java 25': 'java25', 'Java 21': 'java21', 'Java 17': 'java17', 'Java 11': 'java11', 'Java 8': 'java8' };
+const imgsOf = e => e && e.image === 'termux/java' ? JIMG : { [(e && e.name) || 'Termux']: (e && e.image) || 'termux/shell' };
 const eggAttr = (id, inclVars) => {
   const e = EGGS[id]; if (!e) return null;
-  const a = { id, uuid: 'egg-' + id, name: e.name, nest: e.nest, author: 'handy-panel', description: e.description, docker_image: e.image, docker_images: { [e.name + ' (lokal)']: e.image }, config: {}, startup: e.startup, script: {}, created_at: now(), updated_at: now() };
+  const a = { id, uuid: 'egg-' + id, name: e.name, nest: e.nest, author: 'handy-panel', description: e.description, docker_image: e.image, docker_images: imgsOf(e), config: {}, startup: e.startup, script: {}, created_at: now(), updated_at: now() };
   if (inclVars) a.relationships = { variables: { object: 'list', data: e.vars.map((v, i) => ({ object: 'egg_variable', attributes: { id: id * 10 + i, egg_id: id, name: v.name, description: v.desc, env_variable: v.env, default_value: v.def, user_viewable: true, user_editable: true, rules: v.rules } })) } };
   return { object: 'egg', attributes: a };
 };
@@ -146,6 +157,15 @@ async function prepare(s) {
     await fsp.writeFile(pf, t);
     if (String(env.EULA).toLowerCase() !== 'true') { out(s, 'Die Minecraft-EULA ist nicht akzeptiert. Setze die Variable „Minecraft-EULA akzeptieren“ (EULA) unter Startup auf true.', 'error'); return false }
   }
+  if (e && e.bedrock) {
+    if (String(env.EULA).toLowerCase() !== 'true') { out(s, 'Die Minecraft-EULA ist nicht akzeptiert. Setze unter Startup „Minecraft-EULA akzeptieren“ auf true.', 'error'); return false }
+    const pf = path.join(d, 'server.properties'); let t = ''; try { t = await fsp.readFile(pf, 'utf8') } catch (x) { }
+    const setp = (k, v) => { const re = new RegExp('^' + k + '=.*$', 'm'); t = re.test(t) ? t.replace(re, k + '=' + v) : t + (t && !t.endsWith('\n') ? '\n' : '') + k + '=' + v + '\n' };
+    const port = +env.SERVER_PORT, tr = String(env.BEDROCK_TRANSPORT || 'nethernet').toLowerCase() === 'raknet' ? 'raknet' : 'nethernet';
+    setp('server-port', port); setp('server-portv6', port < 65535 ? port + 1 : port - 1); setp('server-udp-ports', port); setp('transport', tr);
+    if (tr === 'raknet' || port !== 19132) setp('enable-lan-visibility', 'false'); // mit RakNet belegt die LAN-Anzeige 19132/19133 ein zweites Mal
+    await fsp.writeFile(pf, t);
+  }
   if (s.egg === 16 && String(env.TS3_LICENSE).toLowerCase() !== 'true') { out(s, 'Die TeamSpeak-Lizenz ist nicht akzeptiert. Setze unter Startup „TeamSpeak-Lizenz akzeptieren“ auf true.', 'error'); return false }
   if (s.egg === 16) await fsp.writeFile(path.join(d, '.ts3server_license_accepted'), 'license_accepted=1\n');
   if (e && e.vars.some(v => v.env === 'AUTO_UPDATE') && String(env.AUTO_UPDATE) === 'true' && fs.existsSync(path.join(d, '.git'))) { // vor dem Start aktualisieren
@@ -177,7 +197,11 @@ async function start(s, opts) {
     try { if ((await fsp.stat(F.log)).size > 10 * 1048576) await fsp.rename(F.log, F.log.replace(/\.log$/, '.alt.log')) } catch (e) { }
     for (const f of [F.ex, F.ctl]) { try { await fsp.unlink(f) } catch (e) { } }
   } catch (e) { out(s, 'Start nicht möglich: ' + e.message, 'error'); setState(s, 'offline'); return }
-  const cmd = fill(s, s.startup || (EGGS[s.egg] || {}).startup || '');
+  let cmd = fill(s, s.startup || (EGGS[s.egg] || {}).startup || '');
+  if (/^java\s/.test(cmd)) { // passendes Java für diesen Server (unter Startup wählbar)
+    const m = /^java(\d+)$/.exec(s.image || ''), need = m ? +m[1] : s.javaNeed;
+    if (need || !(await javaMajor())) { try { const j = await ensureJava(need || 21, l => out(s, l, 'daemon'), !!m); if (!j.sys) cmd = (WIN ? '"' + j.bin + '"' : shq(j.bin)) + cmd.slice(4); out(s, 'Java ' + j.major + ' wird verwendet.', 'daemon') } catch (e) { out(s, e.message, 'error'); setState(s, 'offline'); return } }
+  }
   out(s, '$ ' + cmd, 'daemon');
   let off = 0; try { off = fs.statSync(F.log).size } catch (e) { }
   const w = spawn(process.execPath, [path.resolve(__filename), '--wrap', s.uuid, '--dir', BASE], { cwd: dirOf(s), env: Object.assign({}, process.env, envOf(s), { HP_CMD: cmd }), detached: true, stdio: 'ignore', windowsHide: true });
@@ -211,7 +235,7 @@ function pump(s) {
   } catch (x) { }
   if (r.pid && !alive(r.pid)) gone(s);
 }
-const HINT = () => TERMUX ? 'Minecraft: pkg install openjdk-21 · Python: pkg install python · Node.js: pkg install nodejs' : WIN ? 'Java (Minecraft): adoptium.net · Python: python.org · Node.js: nodejs.org – danach das Panel neu starten.' : MAC ? 'Java: brew install openjdk@21 · Python: brew install python' : 'Java: sudo apt install openjdk-21-jre-headless · Python: sudo apt install python3';
+const HINT = () => TERMUX ? 'Minecraft: pkg install openjdk-21 (ab Minecraft 26: openjdk-25) · Python: pkg install python · Node.js: pkg install nodejs' : WIN ? 'Java (Minecraft): adoptium.net · Python: python.org · Node.js: nodejs.org – danach das Panel neu starten.' : MAC ? 'Java: brew install openjdk@21 · Python: brew install python' : 'Java: sudo apt install openjdk-21-jre-headless · Python: sudo apt install python3';
 function gone(s) {
   const r = rt(s); clearInterval(r.iv); r.iv = null; clearTimeout(r.killT);
   let code = null; try { code = parseInt(fs.readFileSync(ctl(s).ex, 'utf8'), 10) } catch (e) { }
@@ -337,38 +361,116 @@ async function download(u, file, log) {
   await fsp.rename(file + '.part', file);
 }
 function run(cmd, args, cwd, log) { return new Promise(res => { let p; try { p = spawn(cmd, args, { cwd, env: process.env, shell: WIN, windowsHide: true }) } catch (e) { log('Befehl nicht verfügbar: ' + cmd); return res(127) } const f = ch => ch.toString().split(/\r?\n/).filter(Boolean).forEach(l => log(l)); p.stdout.on('data', f); p.stderr.on('data', f); p.on('error', () => { log('Befehl nicht gefunden: ' + cmd); res(127) }); p.on('exit', c => res(c)) }) }
-function javaMajor() { return new Promise(res => execFile('java', ['-version'], (err, so, se) => { if (err && !se) return res(0); const m = /version "(\d+)(?:\.(\d+))?/.exec(String(se) + String(so)); if (!m) return res(0); res(+m[1] === 1 ? +m[2] : +m[1]) })) }
+function javaMajorOf(bin) { return new Promise(res => execFile(bin, ['-version'], { windowsHide: true }, (err, so, se) => { if (err && !se) return res(0); const m = /version "(\d+)(?:\.(\d+))?/.exec(String(se) + String(so)); if (!m) return res(0); res(+m[1] === 1 ? +m[2] : +m[1]) })) }
+const javaMajor = () => javaMajorOf('java');
+/* ---------- Java: passende Version je Server. Auf PC/Linux/Mac lädt das Panel fehlende Versionen selbst
+   (Eclipse Temurin, nach <Datenordner>/javas) – wie die „Java-Images“ bei Hostern. Termux: pkg install openjdk-XX ---------- */
+const JHOME = path.join(BASE, 'javas'), JAVA_AUTO = !TERMUX && (process.arch === 'x64' || process.arch === 'arm64'), JDL = {};
+const jNorm = n => [8, 11, 17, 21, 25].find(x => x >= (n || 0)) || n;
+const jbinIn = d => { for (const c of [path.join(d, 'bin'), path.join(d, 'Contents', 'Home', 'bin')]) { const f = path.join(c, WIN ? 'java.exe' : 'java'); if (fs.existsSync(f)) return f } return null };
+let JL = null;
+const hasJavac = bin => new Promise(res => execFile(bin === 'java' ? 'javac' : path.join(path.dirname(bin), WIN ? 'javac.exe' : 'javac'), ['-version'], { windowsHide: true }, err => res(!err)));
+async function javaList(force) {
+  if (JL && !force) return JL; const out = [], sys = await javaMajor(); if (sys) out.push({ major: sys, bin: 'java', sys: true, jdk: await hasJavac('java') });
+  let ds = []; try { ds = fs.readdirSync(JHOME) } catch (e) { }
+  for (const x of ds) { const root = path.join(JHOME, x); let b = jbinIn(root); if (!b) { try { for (const y of fs.readdirSync(root)) { b = jbinIn(path.join(root, y)); if (b) break } } catch (e) { } } if (b) { const m = await javaMajorOf(b); if (m) out.push({ major: m, bin: b, jdk: await hasJavac(b) }) } }
+  return (JL = out);
+}
+// Liefert ein Java, das zu „need“ passt (ab Java 17 darf es auch neuer sein); lädt es bei Bedarf
+async function ensureJava(need, log, exact, jdk) { // jdk = mit Compiler (z. B. für Spigot-BuildTools)
+  log = log || (() => { }); need = jNorm(need || 21); const L = (await javaList()).filter(j => !jdk || j.jdk);
+  const hit = L.find(j => j.major === need) || (!exact && need >= 17 && L.filter(j => j.major >= need).sort((a, b) => a.major - b.major)[0]);
+  if (hit) return hit;
+  if (!JAVA_AUTO) throw Error('Dieser Server braucht Java ' + need + (L.length ? ' (vorhanden: ' + L.map(j => j.major).join(', ') + ')' : '') + '. ' + (TERMUX ? 'In Termux: pkg install openjdk-' + need + ' – danach erneut versuchen.' : 'Bitte Java ' + need + ' installieren (adoptium.net).'));
+  const key = need + (jdk ? '-jdk' : '');
+  if (JDL[key]) return JDL[key];
+  return (JDL[key] = (async () => { try {
+    const os2 = WIN ? 'windows' : MAC ? 'mac' : 'linux', ar = process.arch === 'arm64' ? 'aarch64' : 'x64', dir = path.join(JHOME, key), f = path.join(JHOME, 'java-' + key + (WIN ? '.zip' : '.tar.gz'));
+    await fsp.mkdir(JHOME, { recursive: true }); await fsp.rm(dir, { recursive: true, force: true }); await fsp.mkdir(dir, { recursive: true });
+    log('Lade Java ' + need + (jdk ? ' JDK' : '') + ' (Eclipse Temurin, nur für das Panel) …');
+    await download('https://api.adoptium.net/v3/binary/latest/' + need + '/ga/' + os2 + '/' + ar + '/' + (jdk ? 'jdk' : 'jre') + '/hotspot/normal/eclipse', f, log);
+    if (WIN) await unzipFile(f, dir); else await sh('tar', ['-xzf', f, '-C', dir], dir);
+    try { fs.unlinkSync(f) } catch (e) { }
+    const j = (await javaList(true)).find(x => x.major === need && !x.sys && (!jdk || x.jdk)); if (!j) throw Error('Java ' + need + ' ließ sich nicht einrichten.');
+    log('Java ' + need + ' ist bereit.'); return j;
+  } finally { delete JDL[key] } })());
+}
+const maxJava = async () => JAVA_AUTO ? 99 : Math.max(0, ...(await javaList(true)).map(j => j.major));
+async function setJava(s, need, log) { s.javaNeed = jNorm(need); save(); return ensureJava(need, log) }
+const MAN = { t: 0, d: null };
+async function manifest() { if (!MAN.d || Date.now() - MAN.t > 600000) { MAN.d = await getJSON('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json'); MAN.t = Date.now() } return MAN.d }
+async function mcMeta(id) { const v = (await manifest()).versions.find(x => x.id === id); if (!v) throw Error('Minecraft ' + id + ' gibt es nicht.'); return getJSON(v.url) }
+async function mcNeed(id) { try { const j = await mcMeta(id); return (j.javaVersion && j.javaVersion.majorVersion) || 8 } catch (e) { return 21 } }
+async function pool(items, n, fn) { let i = 0; await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const k = i++; await fn(items[k], k) } })) }
+/* ---------- ZIP entpacken (ohne Zusatzprogramme – klappt auch in Termux und unter Windows) ---------- */
+const zlib = require('zlib'), inflateRaw = require('util').promisify(zlib.inflateRaw);
+async function zipEntries(fd) {
+  const st = await fd.stat(), tl = Math.min(st.size, 65557), tail = Buffer.alloc(tl); await fd.read(tail, 0, tl, st.size - tl);
+  let e = -1; for (let i = tl - 22; i >= 0; i--) if (tail.readUInt32LE(i) === 0x06054b50) { e = i; break }
+  if (e < 0) throw Error('Keine gültige ZIP-Datei.');
+  const cnt = tail.readUInt16LE(e + 10), cdSize = tail.readUInt32LE(e + 12), cdOff = tail.readUInt32LE(e + 16); if (cdOff === 0xffffffff) throw Error('Sehr große ZIP-Dateien (ZIP64) werden nicht unterstützt.');
+  const cd = Buffer.alloc(cdSize); await fd.read(cd, 0, cdSize, cdOff); const out = []; let o = 0;
+  for (let i = 0; i < cnt && o + 46 <= cd.length && cd.readUInt32LE(o) === 0x02014b50; i++) { const nl = cd.readUInt16LE(o + 28), el = cd.readUInt16LE(o + 30), cl = cd.readUInt16LE(o + 32); out.push({ name: cd.toString('utf8', o + 46, o + 46 + nl), method: cd.readUInt16LE(o + 10), csize: cd.readUInt32LE(o + 20), mode: (cd.readUInt32LE(o + 38) >>> 16) & 0o777, lho: cd.readUInt32LE(o + 42) }); o += 46 + nl + el + cl }
+  return out;
+}
+async function zipRead(fd, en) { const h = Buffer.alloc(30); await fd.read(h, 0, 30, en.lho); if (h.readUInt32LE(0) !== 0x04034b50) throw Error('ZIP-Datei beschädigt.'); const b = Buffer.alloc(en.csize); await fd.read(b, 0, en.csize, en.lho + 30 + h.readUInt16LE(26) + h.readUInt16LE(28)); if (en.method === 0) return b; if (en.method === 8) return inflateRaw(b); throw Error('Unbekannte Kompression in ' + en.name) }
+async function zipFile(file, name) { const fd = await fsp.open(file, 'r'); try { const en = (await zipEntries(fd)).find(x => x.name === name); return en ? await zipRead(fd, en) : null } finally { await fd.close() } }
+async function unzipFile(file, dest, o) {
+  o = o || {}; let n = 0; const root = path.resolve(dest), fd = await fsp.open(file, 'r');
+  try { for (const en of await zipEntries(fd)) {
+    let name = en.name.replace(/\\/g, '/'); if (o.prefix) { if (!name.startsWith(o.prefix)) continue; name = name.slice(o.prefix.length) }
+    if (!name) continue; const to = path.resolve(root, name); if (to !== root && !to.startsWith(root + path.sep)) continue; // Schutz vor ../
+    if (name.endsWith('/')) { await fsp.mkdir(to, { recursive: true }); continue }
+    if (o.skip && o.skip(name, to)) continue;
+    await fsp.mkdir(path.dirname(to), { recursive: true }); await fsp.writeFile(to, await zipRead(fd, en)); if (!WIN && en.mode & 0o111) await fsp.chmod(to, en.mode | 0o600); n++ } }
+  finally { await fd.close() } return n;
+}
+// Bedrock: Statusabfrage über RakNet (UDP) – Version, Spieler, MOTD
+function bedrockPing(port, ms) { return new Promise(res => { let so; try { so = dgram.createSocket('udp4') } catch (e) { return res({ online: false, err: e.message }) } const t0 = Date.now(), fin = v => { try { so.close() } catch (e) { } res(v) };
+  const b = Buffer.alloc(33); b[0] = 0x01; b.writeBigInt64BE(BigInt(Date.now()), 1); Buffer.from('00ffff00fefefefefdfdfdfd12345678', 'hex').copy(b, 9); b.writeBigInt64BE(2n, 25);
+  so.on('message', m => { if (m[0] !== 0x1c || m.length < 35) return; const x = m.toString('utf8', 35, 35 + m.readUInt16BE(33)).split(';'); fin({ online: true, ms: Date.now() - t0, motd: x[1] || '', protocol: +x[2] || 0, version: 'Bedrock ' + (x[3] || ''), players: { online: +x[4] || 0, max: +x[5] || 0, sample: [] }, level: x[7] || '', mode: x[8] || '' }) });
+  so.on('error', () => fin({ online: false, err: 'keine Antwort' })); so.send(b, port, '127.0.0.1', () => { }); setTimeout(() => fin({ online: false, err: 'keine Antwort' }), ms || 2500) }) }
 // Neueste Version eines PaperMC-Projekts (paper, velocity …), die mit dem vorhandenen Java läuft
 async function pickFill(project, want, jv) {
-  const pr = await getJSON('https://fill.papermc.io/v3/projects/' + project);
-  const all = Object.values(pr.versions || {}).flat().filter(v => !/-(rc|pre)|snapshot/i.test(v));
-  if (want && want !== 'latest') return want;
-  for (const v of all) { try { const j = await getJSON('https://fill.papermc.io/v3/projects/' + project + '/versions/' + v); const min = j.version && j.version.java && j.version.java.version && j.version.java.version.minimum || 17; if (!jv || min <= jv) return v; } catch (e) { } }
-  return all[0];
+  const pr = await getJSON('https://fill.papermc.io/v3/projects/' + project), jmin = async v => { try { const j = await getJSON('https://fill.papermc.io/v3/projects/' + project + '/versions/' + v); return j.version && j.version.java && j.version.java.version && j.version.java.version.minimum || 17 } catch (e) { return 0 } };
+  const all = Object.values(pr.versions || {}).flat().filter(v => !/-(rc|pre)|rc\d|pre\d|snapshot/i.test(v));
+  if (want && want !== 'latest') { const n = await jmin(want); if (!n) throw Error(project + ' ' + want + ' gibt es nicht.'); return { v: want, need: n } }
+  for (const v of all) { const n = await jmin(v); if (n && (!jv || n <= jv)) return { v, need: n } }
+  return { v: all[0], need: 21 };
 }
-const pickPaper = (want, jv) => pickFill('paper', want, jv);
 async function fillJar(project, v, file, log) { const b = await getJSON('https://fill.papermc.io/v3/projects/' + project + '/versions/' + v + '/builds/latest'); const dl = b.downloads && (b.downloads['server:default'] || Object.values(b.downloads)[0]); if (!dl) throw Error('Kein Download für ' + project + ' ' + v); log('Lade ' + dl.name + ' …'); await download(dl.url, file, log) }
-const jlog = async log => { const jv = await javaMajor(); log(jv ? 'Gefundenes Java: ' + jv : 'Java ist (noch) nicht installiert. ' + HINT()); return jv };
+async function jlog(log) { const L = await javaList(true); log(L.length ? 'Java vorhanden: ' + [...new Set(L.map(j => j.major))].join(', ') + (JAVA_AUTO ? ' – fehlende Versionen lädt das Panel automatisch.' : '') : JAVA_AUTO ? 'Java lädt das Panel bei Bedarf automatisch.' : 'Java ist nicht installiert. ' + HINT()); return maxJava() }
 // Neueste Minecraft-Version (oder die gewünschte), die zu Java passt; ok(id) = gibt es sie für diesen Loader?
 async function mcPick(want, jv, ok) {
-  const man = await getJSON('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json'), rel = man.versions.filter(v => v.type === 'release');
+  const man = await manifest(), rel = man.versions.filter(v => v.type === 'release');
   if (want && want !== 'latest') { if (!rel.some(v => v.id === want)) throw Error('Minecraft ' + want + ' gibt es nicht.'); if (ok && !(await ok(want))) throw Error('Für Minecraft ' + want + ' gibt es diese Server-Art nicht.'); return want }
-  for (const v of rel.slice(0, 40)) { if (ok && !(await ok(v.id))) continue; const j = await getJSON(v.url), need = (j.javaVersion && j.javaVersion.majorVersion) || 8; if (need <= (jv || 21)) return v.id }
+  for (const v of rel.slice(0, 60)) { if (ok && !(await ok(v.id))) continue; if (jv >= 99) return v.id; const j = await getJSON(v.url), need = (j.javaVersion && j.javaVersion.majorVersion) || 8; if (need <= (jv || 21)) return v.id }
   throw Error('Keine passende Minecraft-Version für Java ' + (jv || '?') + ' gefunden.');
 }
 const vnum = (a, b) => { const x = String(a).split('.').map(n => parseInt(n, 10) || 0), y = String(b).split('.').map(n => parseInt(n, 10) || 0); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0) } return 0 };
 // Forge/NeoForge: Installer ausführen und die Startparameter nach start_args.txt legen
-async function modInstaller(d, url, libdir, log) {
+async function modInstaller(d, url, libdir, log, jbin, loader) {
   const inst = path.join(d, 'installer.jar'); await download(url, inst, log);
   log('Installiere – lädt Minecraft und Bibliotheken, das dauert ein paar Minuten …');
-  let n = 0; const code = await run('java', ['-jar', 'installer.jar', '--installServer'], d, l => { if (++n <= 3 || n % 150 === 0 || /error|fail|exception|success/i.test(l)) log(l) });
+  let n = 0; const code = await run(jbin || 'java', ['-jar', 'installer.jar', '--installServer'], d, l => { if (++n <= 3 || n % 150 === 0 || /error|fail|exception|success/i.test(l)) log(l) });
   for (const f of ['installer.jar', 'installer.jar.log']) { try { fs.unlinkSync(path.join(d, f)) } catch (e) { } }
   if (code !== 0) throw Error('Der Installer ist fehlgeschlagen (Code ' + code + '). Passt die Java-Version?');
   const af = path.join(d, libdir, WIN ? 'win_args.txt' : 'unix_args.txt');
-  if (fs.existsSync(af)) await fsp.copyFile(af, path.join(d, 'start_args.txt'));
-  else { const j = fs.readdirSync(d).find(f => /^(forge|neoforge)-.*\.jar$/i.test(f) && !/installer/i.test(f)); if (!j) throw Error('Startdatei nach der Installation nicht gefunden.'); await fsp.writeFile(path.join(d, 'start_args.txt'), '-jar ' + j + '\n') }
+  const tag = '# Toolbox: loader=' + (loader || (/neoforged/.test(libdir) ? 'neoforge' : 'forge')) + '\n';
+  if (fs.existsSync(af)) await fsp.writeFile(path.join(d, 'start_args.txt'), tag + await fsp.readFile(af, 'utf8'));
+  else { const j = fs.readdirSync(d).find(f => /^(forge|neoforge)-.*\.jar$/i.test(f) && !/installer/i.test(f)); if (!j) throw Error('Startdatei nach der Installation nicht gefunden.'); await fsp.writeFile(path.join(d, 'start_args.txt'), tag + '-jar ' + j + '\n') }
   for (const f of ['run.sh', 'run.bat']) { try { fs.unlinkSync(path.join(d, f)) } catch (e) { } }
   log('Fertig: Startparameter liegen in start_args.txt.');
+}
+// Quilt: offizieller Installer (lädt auch die Minecraft-Server-Datei)
+async function quiltInstall(d, mc, loaderV, j, log) {
+  const x = await (await fetch('https://maven.quiltmc.org/repository/release/org/quiltmc/quilt-installer/maven-metadata.xml', { signal: AbortSignal.timeout(20000) })).text(), iv = (/<release>([^<]+)</.exec(x) || [])[1]; if (!iv) throw Error('Quilt-Installer nicht gefunden.');
+  await download('https://maven.quiltmc.org/repository/release/org/quiltmc/quilt-installer/' + iv + '/quilt-installer-' + iv + '.jar', path.join(d, 'quilt-installer.jar'), log);
+  const a = ['-jar', 'quilt-installer.jar', 'install', 'server', mc]; if (loaderV) a.push(loaderV); a.push('--download-server', '--install-dir=.');
+  const code = await run(j.bin, a, d, log); try { fs.unlinkSync(path.join(d, 'quilt-installer.jar')) } catch (e) { }
+  if (code !== 0) throw Error('Der Quilt-Installer ist fehlgeschlagen (Code ' + code + ').');
+  const launch = fs.readdirSync(d).find(f => /^quilt-server-launch.*\.jar$/.test(f)); if (!launch) throw Error('Quilt: Startdatei nicht gefunden.');
+  await fsp.writeFile(path.join(d, 'start_args.txt'), '# Toolbox: loader=quilt mc=' + mc + '\n-jar ' + launch + '\n');
 }
 // Git: Projekt holen oder aktualisieren
 async function gitGet(d, env, log) {
@@ -393,32 +495,100 @@ async function deps(d, log) {
 }
 const INST = {
   async paper(s, d, env, log) {
-    const jv = await javaMajor(); log(jv ? 'Gefundenes Java: ' + jv : 'Java ist (noch) nicht installiert. ' + HINT());
-    const v = await pickPaper(env.MINECRAFT_VERSION, jv || 21, log); log('Minecraft-Version: ' + v);
-    const b = await getJSON('https://fill.papermc.io/v3/projects/paper/versions/' + v + '/builds/latest');
-    const dl = b.downloads && (b.downloads['server:default'] || Object.values(b.downloads)[0]); if (!dl) throw Error('Kein Download für Paper ' + v);
-    log('Lade ' + dl.name + ' …'); await download(dl.url, path.join(d, env.SERVER_JARFILE || 'server.jar'), log);
+    const jv = await jlog(log), { v, need } = await pickFill('paper', env.MINECRAFT_VERSION, jv); log('Minecraft-Version: ' + v + ' (braucht Java ' + need + ')');
+    await setJava(s, need, log); await fillJar('paper', v, path.join(d, env.SERVER_JARFILE || 'server.jar'), log);
   },
   async vanilla(s, d, env, log) {
-    const jv = await javaMajor(); log(jv ? 'Gefundenes Java: ' + jv : 'Java ist (noch) nicht installiert. ' + HINT());
-    const man = await getJSON('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json');
-    let list = man.versions.filter(v => v.type === 'release'); if (env.MINECRAFT_VERSION && env.MINECRAFT_VERSION !== 'latest') list = list.filter(v => v.id === env.MINECRAFT_VERSION);
-    if (!list.length) throw Error('Version ' + env.MINECRAFT_VERSION + ' gibt es nicht.');
-    for (const v of list.slice(0, 40)) { const j = await getJSON(v.url); const need = (j.javaVersion && j.javaVersion.majorVersion) || 8; if (env.MINECRAFT_VERSION !== 'latest' || need <= (jv || 21)) { log('Minecraft-Version: ' + v.id + ' (braucht Java ' + need + ')'); return download(j.downloads.server.url, path.join(d, env.SERVER_JARFILE || 'server.jar'), log) } }
-    throw Error('Keine passende Version für Java ' + jv + ' gefunden.');
+    const jv = await jlog(log), id = await mcPick(env.MINECRAFT_VERSION, jv), j = await mcMeta(id), need = (j.javaVersion && j.javaVersion.majorVersion) || 8;
+    log('Minecraft-Version: ' + id + ' (braucht Java ' + need + ')'); await setJava(s, need, log);
+    await download(j.downloads.server.url, path.join(d, env.SERVER_JARFILE || 'server.jar'), log);
+  },
+  async snapshot(s, d, env, log) {
+    const jv = await jlog(log), man = await manifest(), want = String(env.MINECRAFT_VERSION || 'latest').trim(), id = want === 'latest' ? man.latest.snapshot : want, j = await mcMeta(id), need = (j.javaVersion && j.javaVersion.majorVersion) || 8;
+    if (!j.downloads || !j.downloads.server) throw Error('Für ' + id + ' gibt es keinen Server.');
+    log('Snapshot: ' + id + ' (braucht Java ' + need + ')'); if (need > jv) throw Error('Dafür braucht es Java ' + need + '. ' + HINT());
+    await setJava(s, need, log); await download(j.downloads.server.url, path.join(d, env.SERVER_JARFILE || 'server.jar'), log);
   },
   async fabric(s, d, env, log) {
-    const jv = await javaMajor();
-    const g = await getJSON('https://meta.fabricmc.net/v2/versions/game'), L = await getJSON('https://meta.fabricmc.net/v2/versions/loader'), I = await getJSON('https://meta.fabricmc.net/v2/versions/installer');
-    let game = env.MINECRAFT_VERSION && env.MINECRAFT_VERSION !== 'latest' ? env.MINECRAFT_VERSION : null;
-    if (!game) { const man = await getJSON('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json'); for (const v of g.filter(x => x.stable).slice(0, 30)) { const m = man.versions.find(x => x.id === v.version); if (!m) continue; const j = await getJSON(m.url); if (((j.javaVersion && j.javaVersion.majorVersion) || 8) <= (jv || 21)) { game = v.version; break } } }
-    if (!game) throw Error('Keine passende Minecraft-Version gefunden.');
-    const lo = L.find(x => x.stable) || L[0], ins = I.find(x => x.stable) || I[0]; log('Fabric ' + lo.version + ' für Minecraft ' + game);
-    await download(`https://meta.fabricmc.net/v2/versions/loader/${game}/${lo.version}/${ins.version}/server/jar`, path.join(d, env.SERVER_JARFILE || 'server.jar'), log);
+    const jv = await jlog(log), g = await getJSON('https://meta.fabricmc.net/v2/versions/game'), L = await getJSON('https://meta.fabricmc.net/v2/versions/loader'), I = await getJSON('https://meta.fabricmc.net/v2/versions/installer');
+    const game = await mcPick(env.MINECRAFT_VERSION, jv, async id => g.some(x => x.version === id)), need = await mcNeed(game);
+    const lo = L.find(x => x.stable) || L[0], ins = I.find(x => x.stable) || I[0]; log('Fabric ' + lo.version + ' für Minecraft ' + game + ' (Java ' + need + ')');
+    await setJava(s, need, log); await download(`https://meta.fabricmc.net/v2/versions/loader/${game}/${lo.version}/${ins.version}/server/jar`, path.join(d, env.SERVER_JARFILE || 'server.jar'), log);
+  },
+  async quilt(s, d, env, log) {
+    const jv = await jlog(log), g = await getJSON('https://meta.quiltmc.org/v3/versions/game'), L = await getJSON('https://meta.quiltmc.org/v3/versions/loader');
+    const mc = await mcPick(env.MINECRAFT_VERSION, jv, async id => g.some(x => x.version === id)), lo = (L.find(x => !/beta|alpha|pre|rc/i.test(x.version)) || L[0]).version;
+    log('Quilt ' + lo + ' für Minecraft ' + mc); const j = await setJava(s, await mcNeed(mc), log); await quiltInstall(d, mc, lo, j, log);
+  },
+  async spigot(s, d, env, log) {
+    const jv = await jlog(log), t = await (await fetch('https://hub.spigotmc.org/versions/', { signal: AbortSignal.timeout(20000) })).text(), vs = [...t.matchAll(/href="(\d+\.\d+(?:\.\d+)?)\.json"/g)].map(m => m[1]);
+    const mc = await mcPick(env.MINECRAFT_VERSION, jv, async id => vs.includes(id)), need = await mcNeed(mc); await setJava(s, need, log);
+    const j = await ensureJava(need, log, false, true), jar = env.SERVER_JARFILE || 'server.jar'; // BuildTools braucht ein JDK
+    await download('https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar', path.join(d, 'BuildTools.jar'), log);
+    try { // Maven vorab von Maven Central holen (archive.apache.org ist oft langsam oder nicht erreichbar)
+      const cls = await zipFile(path.join(d, 'BuildTools.jar'), 'org/spigotmc/builder/Builder.class'), mv = cls && (/apache-maven-(\d+\.\d+\.\d+)/.exec(cls.toString('latin1')) || [])[1];
+      if (mv && !fs.existsSync(path.join(d, 'apache-maven-' + mv))) { const z = path.join(d, 'maven.zip'); log('Lade Maven ' + mv + ' …'); await download('https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/' + mv + '/apache-maven-' + mv + '-bin.zip', z, log); await unzipFile(z, d); fs.unlinkSync(z); if (!WIN) for (const f of ['mvn', 'mvnDebug']) { try { fs.chmodSync(path.join(d, 'apache-maven-' + mv, 'bin', f), 0o755) } catch (e) { } } }
+    } catch (e) { log('Maven wird von BuildTools selbst geladen (' + e.message + ').') }
+    log('Baue Spigot ' + mc + ' mit BuildTools – das dauert 5–15 Minuten …');
+    let n = 0; const code = await run(j.bin, ['-Xmx1536M', '-jar', 'BuildTools.jar', '--rev', mc, '--output-dir', '.', '--final-name', jar], d, l => { if (++n <= 4 || n % 250 === 0 || /error|exception|success|saved as|built version/i.test(l)) log(l) });
+    for (const x of await fsp.readdir(d)) if (/^(BuildTools\.jar|BuildTools\.log\.txt|BuildData|Bukkit|CraftBukkit|Spigot|work|apache-maven.*|PortableGit.*)$/.test(x)) await fsp.rm(path.join(d, x), { recursive: true, force: true }).catch(() => { });
+    if (code !== 0 || !fs.existsSync(path.join(d, jar))) throw Error('BuildTools ist fehlgeschlagen (Code ' + code + '). Details in .hp/install.log. Häufige Ursachen: Git fehlt (' + (TERMUX ? 'pkg install git' : WIN ? 'git-scm.com' : 'sudo apt install git') + '), zu wenig Arbeitsspeicher oder ein JDK fehlt.');
+    log('Spigot ' + mc + ' ist gebaut.');
+  },
+  async arclight(s, d, env, log) {
+    const jv = await jlog(log), L = String(env.ARCLIGHT_LOADER || 'neoforge').toLowerCase(), H = ['https://files.hypoglycemia.icu/v1/files/arclight', 'https://files.hypertention.cn/v1/files/arclight'];
+    const get = async p => { let e; for (const h of H) { try { return await getJSON(h + p) } catch (x) { e = x } } throw e };
+    const vs = ((await get('/minecraft')).files || []).map(f => f.name), has = async v => { try { return ((await get('/minecraft/' + v + '/loaders')).files || []).some(f => f.name === L) } catch (e) { return false } };
+    const mc = await mcPick(env.MINECRAFT_VERSION, jv, async id => vs.includes(id) && await has(id)); await setJava(s, await mcNeed(mc), log); log('Arclight für Minecraft ' + mc + ' (' + L + ')');
+    let ok = false; for (const h of H) { for (const ch of ['latest-stable', 'latest-snapshot']) { try { await download(h + '/minecraft/' + mc + '/loaders/' + L + '/' + ch, path.join(d, 'arclight.jar'), log); ok = true; if (ch !== 'latest-stable') log('Hinweis: Für diese Version gibt es von Arclight nur eine Test-Version (Snapshot).'); break } catch (e) { } } if (ok) break }
+    if (!ok) throw Error('Arclight ließ sich nicht laden.');
+    log('Beim ersten Start lädt Arclight noch Bibliotheken nach – das dauert ein paar Minuten. Plugins → Ordner „plugins“, Mods → Ordner „mods“.');
+  },
+  async modpack(s, d, env, log) {
+    const src = String(env.MODPACK || '').trim(); if (!src) throw Error('Bitte unter Startup das Modpack eintragen (Name oder Link von modrinth.com) und neu installieren.');
+    let url = null, name = src;
+    if (/^https?:\/\/\S+\.mrpack(\?\S*)?$/i.test(src)) url = src;
+    else {
+      const slug = (/modrinth\.com\/modpack\/([\w.\-]+)/i.exec(src) || [])[1] || src.toLowerCase().replace(/\s+/g, '-'); let p;
+      try { p = await getJSON('https://api.modrinth.com/v2/project/' + encodeURIComponent(slug)) } catch (e) { throw Error('Das Modpack „' + slug + '“ gibt es auf modrinth.com nicht.') }
+      if (p.project_type !== 'modpack') throw Error('„' + p.title + '“ ist kein Modpack.');
+      const vs = await getJSON('https://api.modrinth.com/v2/project/' + p.id + '/version'), want = String(env.MODPACK_VERSION || 'latest').trim();
+      const v = want === 'latest' ? (vs.find(x => x.version_type === 'release') || vs[0]) : vs.find(x => x.version_number === want || x.id === want || x.name === want);
+      if (!v) throw Error('Version „' + want + '“ von ' + p.title + ' gibt es nicht.');
+      const f = v.files.find(x => x.primary) || v.files[0]; url = f.url; name = p.title + ' ' + v.version_number;
+    }
+    log('Modpack: ' + name); const mp = path.join(hpd(s), 'modpack.mrpack'); await fsp.mkdir(hpd(s), { recursive: true }); await download(url, mp, log);
+    const ib = await zipFile(mp, 'modrinth.index.json'); if (!ib) throw Error('Das ist keine gültige .mrpack-Datei.');
+    const idx = JSON.parse(ib.toString('utf8')), dep = idx.dependencies || {}, mc = dep.minecraft; if (!mc) throw Error('Im Modpack fehlt die Minecraft-Version.');
+    log('Minecraft ' + mc + ' · ' + (Object.entries(dep).filter(([k]) => k !== 'minecraft').map(([k, v]) => k + ' ' + v).join(', ') || 'ohne Mod-Loader'));
+    const j = await setJava(s, await mcNeed(mc), log);
+    if (dep['fabric-loader']) { const I = await getJSON('https://meta.fabricmc.net/v2/versions/installer'), ins = I.find(x => x.stable) || I[0]; await download(`https://meta.fabricmc.net/v2/versions/loader/${mc}/${dep['fabric-loader']}/${ins.version}/server/jar`, path.join(d, 'server.jar'), log); await fsp.writeFile(path.join(d, 'start_args.txt'), '# Toolbox: loader=fabric mc=' + mc + '\n-jar server.jar\n') }
+    else if (dep['quilt-loader']) await quiltInstall(d, mc, dep['quilt-loader'], j, log);
+    else if (dep.neoforge) await modInstaller(d, 'https://maven.neoforged.net/releases/net/neoforged/neoforge/' + dep.neoforge + '/neoforge-' + dep.neoforge + '-installer.jar', 'libraries/net/neoforged/neoforge/' + dep.neoforge, log, j.bin, 'neoforge');
+    else if (dep.forge) { const full = mc + '-' + dep.forge; await modInstaller(d, 'https://maven.minecraftforge.net/net/minecraftforge/forge/' + full + '/forge-' + full + '-installer.jar', 'libraries/net/minecraftforge/forge/' + full, log, j.bin, 'forge') }
+    else { await download((await mcMeta(mc)).downloads.server.url, path.join(d, 'server.jar'), log); await fsp.writeFile(path.join(d, 'start_args.txt'), '# Toolbox: loader=vanilla mc=' + mc + '\n-jar server.jar\n') }
+    const files = (idx.files || []).filter(f => !(f.env && f.env.server === 'unsupported')); log('Lade ' + files.length + ' Mods und Dateien …'); let k = 0, miss = 0;
+    await pool(files, 4, async f => { const to = path.resolve(d, f.path || ''); if (!to.startsWith(path.resolve(d) + path.sep)) return; await fsp.mkdir(path.dirname(to), { recursive: true });
+      let ok = false; for (const u of f.downloads || []) { try { await download(u, to, () => { }); ok = true; break } catch (e) { } } if (!ok) { miss++; log('Fehlt: ' + f.path) } if (++k % 25 === 0) log('… ' + k + ' von ' + files.length) });
+    const n = await unzipFile(mp, d, { prefix: 'overrides/' }) + await unzipFile(mp, d, { prefix: 'server-overrides/' });
+    try { fs.unlinkSync(mp) } catch (e) { }
+    log('Fertig: ' + (files.length - miss) + ' Mods, ' + n + ' weitere Dateien' + (miss ? ', ' + miss + ' fehlen' : '') + '.');
+  },
+  async bedrock(s, d, env, log) {
+    const e = EGGS[s.egg], os2 = WIN ? 'Windows' : (process.platform === 'linux' && !TERMUX ? 'Linux' : null);
+    if (!os2 || process.arch !== 'x64') throw Error('Der offizielle Bedrock-Server läuft nur unter Windows und Linux mit Intel/AMD-Prozessor (nicht auf ' + PLAT + ', ' + process.arch + '). Für Handy und Mac: einen Paper-Server anlegen und im Reiter „Plugins“ Geyser und Floodgate installieren – dann können Bedrock-Spieler beitreten.');
+    const r = await getJSON('https://net-secondary.web.minecraft-services.net/api/v1.0/download/links'), type = 'serverBedrock' + (e.preview ? 'Preview' : '') + os2, l = (((r || {}).result || {}).links || []).find(x => x.downloadType === type);
+    if (!l) throw Error('Kein Download-Link für ' + type + ' gefunden.');
+    const ver = (/bedrock-server-([\d.]+)\.zip/.exec(l.downloadUrl) || [])[1] || '?', f = path.join(hpd(s), 'bedrock-server.zip'); await fsp.mkdir(hpd(s), { recursive: true });
+    log('Bedrock-Server ' + ver + (e.preview ? ' (Preview)' : '') + ' …'); await download(l.downloadUrl, f, log);
+    const keep = /^(server\.properties|permissions\.json|allowlist\.json|whitelist\.json|valid_known_packs\.json)$/, first = !fs.existsSync(path.join(d, 'server.properties'));
+    const n = await unzipFile(f, d, { skip: (name, to) => (keep.test(name) || name.startsWith('worlds/')) && fs.existsSync(to) });
+    if (first) { const pf = path.join(d, 'server.properties'); try { await fsp.writeFile(pf, (await fsp.readFile(pf, 'utf8')).replace(/^allow-list=true$/m, 'allow-list=false')); log('Allowlist ist aus – jeder mit der Adresse kann beitreten. Einschalten: in server.properties allow-list=true, Spieler mit „allowlist add NAME“ in der Konsole.') } catch (x) { } }
+    try { fs.unlinkSync(f) } catch (x) { }
+    log(n + ' Dateien entpackt. Welten und Einstellungen bleiben bei Updates erhalten.'); s.bedrockVer = ver; save();
   },
   async lavalink(s, d, env, log) {
-    const jv = await javaMajor(); log(jv ? 'Gefundenes Java: ' + jv : 'Java ist (noch) nicht installiert. ' + HINT());
-    if (jv && jv < 17) log('Achtung: Lavalink 4 braucht Java 17 oder neuer (gefunden: ' + jv + ').');
+    await jlog(log); await setJava(s, 17, log);
     const v = String(env.LAVALINK_VERSION || 'latest').trim(), u = v === 'latest' ? 'https://github.com/lavalink-devs/Lavalink/releases/latest/download/Lavalink.jar' : 'https://github.com/lavalink-devs/Lavalink/releases/download/' + encodeURIComponent(v) + '/Lavalink.jar';
     log('Lade Lavalink ' + v + ' …'); await download(u, path.join(d, 'Lavalink.jar'), log);
     llPass(s); const e2 = envOf(s), f = path.join(d, 'application.yml'), pv = String(e2.YOUTUBE_PLUGIN) === 'false' ? null : await llPluginVer().catch(() => null);
@@ -443,14 +613,14 @@ const INST = {
   async purpur(s, d, env, log) {
     const jv = await jlog(log), pv = (await getJSON('https://api.purpurmc.org/v2/purpur')).versions || [];
     const v = await mcPick(env.MINECRAFT_VERSION, jv, async id => pv.includes(id)); log('Minecraft-Version: ' + v);
-    await download('https://api.purpurmc.org/v2/purpur/' + v + '/latest/download', path.join(d, env.SERVER_JARFILE || 'server.jar'), log);
+    await setJava(s, await mcNeed(v), log); await download('https://api.purpurmc.org/v2/purpur/' + v + '/latest/download', path.join(d, env.SERVER_JARFILE || 'server.jar'), log);
   },
   async forge(s, d, env, log) {
     const jv = await jlog(log), pr = (await getJSON('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json')).promos || {};
     const mc = await mcPick(env.MINECRAFT_VERSION, jv, async id => !!(pr[id + '-recommended'] || pr[id + '-latest']));
     const fv = env.FORGE_VERSION && env.FORGE_VERSION !== 'latest' ? env.FORGE_VERSION : pr[mc + '-recommended'] || pr[mc + '-latest'], full = mc + '-' + fv;
-    log('Minecraft ' + mc + ' mit Forge ' + fv);
-    await modInstaller(d, 'https://maven.minecraftforge.net/net/minecraftforge/forge/' + full + '/forge-' + full + '-installer.jar', 'libraries/net/minecraftforge/forge/' + full, log);
+    log('Minecraft ' + mc + ' mit Forge ' + fv); const j = await setJava(s, await mcNeed(mc), log);
+    await modInstaller(d, 'https://maven.minecraftforge.net/net/minecraftforge/forge/' + full + '/forge-' + full + '-installer.jar', 'libraries/net/minecraftforge/forge/' + full, log, j.bin, 'forge');
   },
   async neoforge(s, d, env, log) {
     const jv = await jlog(log), x = await (await fetch('https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml', { signal: AbortSignal.timeout(20000) })).text();
@@ -458,19 +628,19 @@ const INST = {
     const pre = mc => { const p = mc.split('.'); return mc.startsWith('1.') ? p[1] + '.' + (p[2] || 0) + '.' : p[0] + '.' + p[1] + '.' + (p[2] || 0) + '.' };
     const mc = await mcPick(env.MINECRAFT_VERSION, jv, async id => all.some(v => v.startsWith(pre(id))));
     const nv = env.NEOFORGE_VERSION && env.NEOFORGE_VERSION !== 'latest' ? env.NEOFORGE_VERSION : all.filter(v => v.startsWith(pre(mc))).sort(vnum).pop();
-    log('Minecraft ' + mc + ' mit NeoForge ' + nv);
-    await modInstaller(d, 'https://maven.neoforged.net/releases/net/neoforged/neoforge/' + nv + '/neoforge-' + nv + '-installer.jar', 'libraries/net/neoforged/neoforge/' + nv, log);
+    log('Minecraft ' + mc + ' mit NeoForge ' + nv); const j = await setJava(s, await mcNeed(mc), log);
+    await modInstaller(d, 'https://maven.neoforged.net/releases/net/neoforged/neoforge/' + nv + '/neoforge-' + nv + '-installer.jar', 'libraries/net/neoforged/neoforge/' + nv, log, j.bin, 'neoforge');
   },
   async velocity(s, d, env, log) {
-    const jv = await jlog(log), v = await pickFill('velocity', env.VELOCITY_VERSION, jv || 21); log('Velocity ' + v);
-    await fillJar('velocity', v, path.join(d, env.SERVER_JARFILE || 'velocity.jar'), log);
+    const jv = await jlog(log), { v, need } = await pickFill('velocity', env.VELOCITY_VERSION, jv || 21); log('Velocity ' + v + ' (Java ' + need + ')');
+    await setJava(s, need, log); await fillJar('velocity', v, path.join(d, env.SERVER_JARFILE || 'velocity.jar'), log);
     log('Tipp: In velocity.toml die Server eintragen (z. B. lobby = "127.0.0.1:25566") und bei den Paper-Servern „online-mode=false“ plus Velocity-Weiterleitung einstellen.');
   },
   async jar(s, d, env, log) {
     const u = String(env.JAR_URL || '').trim();
     if (/^https?:\/\//.test(u)) { log('Lade ' + u + ' …'); await download(u, path.join(d, env.JARFILE || 'app.jar'), log) }
-    else log('Lade deine .jar-Datei im Reiter „Dateien“ hoch und nenne sie ' + (env.JARFILE || 'app.jar') + ' (oder ändere den Namen unter Startup).');
-    await jlog(log);
+    else log('Lade deine .jar-Datei im Reiter „Dateien“ hoch und nenne sie ' + (env.JARFILE || 'app.jar') + ' (oder ändere den Namen unter Startup). Java-Version: unter Startup wählbar.');
+    await jlog(log); if (!(await javaMajor())) await setJava(s, 21, log);
   },
   async web(s, d, env, log) {
     await fsp.mkdir(path.join(d, 'public'), { recursive: true });
@@ -637,8 +807,9 @@ logging:
 async function install(s, re) {
   if (running(s)) { stop(s, true); await sleep(800) }
   s.status = 'installing'; save(); emit(s, 'install started', []);
-  const d = dirOf(s); await fsp.mkdir(d, { recursive: true });
-  const log = l => out(s, l, 'install');
+  const d = dirOf(s); await fsp.mkdir(hpd(s), { recursive: true });
+  const ilog = path.join(hpd(s), 'install.log'); try { fs.writeFileSync(ilog, '') } catch (e) { }
+  const log = l => { out(s, l, 'install'); try { fs.appendFileSync(ilog, l + '\n') } catch (e) { } }; // auch als Datei (.hp/install.log)
   log((re ? 'Neuinstallation' : 'Installation') + ' von „' + s.name + '“ (' + ((EGGS[s.egg] || {}).name || '?') + ') …');
   try { const e = EGGS[s.egg]; if (e && INST[e.install]) await INST[e.install](s, d, envOf(s), log); s.status = null; log('Installation abgeschlossen.') }
   catch (e) { s.status = 'install_failed'; log('Installation fehlgeschlagen: ' + e.message) }
@@ -711,11 +882,11 @@ async function client(req, res, p, q) {
   if (s.suspended) throw new HErr(409, 'Der Server ist gesperrt.');
   if (sub === '/power' && M === 'POST') { const j = await json(req); if (!['start', 'stop', 'restart', 'kill'].includes(j.signal)) bad('Unbekanntes Signal.', 'signal'); if (s.status) throw new HErr(409, 'Der Server wird gerade installiert.'); power(s, j.signal); return send(res, 204) }
   if (sub === '/command' && M === 'POST') { const j = await json(req); if (!await command(s, j.command)) throw new HErr(502, 'Der Server läuft nicht.'); return send(res, 204) }
-  if (sub === '/startup' && M === 'GET') { const e = EGGS[s.egg] || { vars: [] }, env = envOf(s); return send(res, 200, Object.assign(list(e.vars.map(v => ({ object: 'egg_variable', attributes: { name: v.name, description: v.desc, env_variable: v.env, default_value: v.def, server_value: env[v.env], is_editable: true, rules: v.rules } }))), { meta: { startup_command: fill(s, s.startup), raw_startup_command: s.startup, docker_images: { [(e.name || 'Termux')]: s.image } } })) }
+  if (sub === '/startup' && M === 'GET') { const e = EGGS[s.egg] || { vars: [] }, env = envOf(s); return send(res, 200, Object.assign(list(e.vars.map(v => ({ object: 'egg_variable', attributes: { name: v.name, description: v.desc, env_variable: v.env, default_value: v.def, server_value: env[v.env], is_editable: true, rules: v.rules } }))), { meta: { startup_command: fill(s, s.startup), raw_startup_command: s.startup, docker_images: Object.assign({}, imgsOf(EGGS[s.egg]), Object.values(imgsOf(EGGS[s.egg])).includes(s.image) ? {} : { [s.image]: s.image }) } })) }
   if (sub === '/startup/variable' && M === 'PUT') { const j = await json(req), e = EGGS[s.egg] || { vars: [] }, v = e.vars.find(x => x.env === j.key); if (!v) bad('Unbekannte Variable.', 'key'); s.env = s.env || {}; s.env[v.env] = String(j.value == null ? '' : j.value); save(); return send(res, 200, { object: 'egg_variable', attributes: { name: v.name, description: v.desc, env_variable: v.env, default_value: v.def, server_value: s.env[v.env], is_editable: true, rules: v.rules } }) }
   if (sub === '/settings/rename' && M === 'POST') { const j = await json(req); if (!String(j.name || '').trim()) bad('Name fehlt.', 'name'); s.name = String(j.name).trim().slice(0, 191); s.description = String(j.description || ''); save(); return send(res, 204) }
   if (sub === '/settings/reinstall' && M === 'POST') { install(s, true); return send(res, 202) }
-  if (sub === '/settings/docker-image' && M === 'PUT') { const j = await json(req); s.image = String(j.docker_image || s.image); save(); return send(res, 204) }
+  if (sub === '/settings/docker-image' && M === 'PUT') { const j = await json(req), v = String(j.docker_image || s.image); if (!Object.values(imgsOf(EGGS[s.egg])).includes(v)) bad('Unbekanntes Image.', 'docker_image'); s.image = v; save(); out(s, 'Java-Auswahl: ' + (Object.keys(imgsOf(EGGS[s.egg])).find(k => imgsOf(EGGS[s.egg])[k] === v) || v) + ' – gilt ab dem nächsten Start.', 'daemon'); return send(res, 204) }
   if (sub.startsWith('/files')) return files(req, res, s, sub.slice(6), q);
   if (sub.startsWith('/network/allocations')) {
     const L = () => send(res, 200, list(allocsOf(s).map(a => ({ object: 'allocation', attributes: allocAttr(a, s) }))));
@@ -744,7 +915,7 @@ async function files(req, res, s, sub, q) {
   if (sub === '/create-folder' && M === 'POST') { await fsp.mkdir(safe(s, path.posix.join(base, j.name || 'neu')), { recursive: true }); return send(res, 204) }
   if (sub === '/chmod' && M === 'POST') { for (const x of j.files || []) { const m = parseInt(String(x.mode), 8); if (!(m >= 0 && m <= 0o777)) bad('Ungültige Rechte.', 'mode'); await fsp.chmod(safe(s, path.posix.join(base, x.file)), m) } return send(res, 204) }
   if (sub === '/compress' && M === 'POST') { const d = safe(s, base), names = (j.files || []).map(n => { safe(s, path.posix.join(base, n)); return n }); if (!names.length) bad('Keine Dateien gewählt.', 'files'); const n = 'archive-' + now().replace(/[:.]/g, '').slice(0, 15) + '.tar.gz'; await sh('tar', ['-czf', path.join(d, n), '--', ...names], d); return send(res, 200, fileAttr(n, await fsp.lstat(path.join(d, n)))) }
-  if (sub === '/decompress' && M === 'POST') { const d = safe(s, base), f = safe(s, path.posix.join(base, j.file)), n = f.toLowerCase(); if (/\.zip$/.test(n)) { if (WIN || MAC) await sh('tar', ['-xf', f, '-C', d], d); else await sh('unzip', ['-o', '-q', f, '-d', d], d) } else if (/\.(tar\.gz|tgz|tar\.xz|tar\.bz2|tar)$/.test(n)) await sh('tar', ['-xf', f, '-C', d], d); else bad('Dieses Archiv-Format wird nicht unterstützt (zip, tar, tar.gz).', 'file'); return send(res, 204) }
+  if (sub === '/decompress' && M === 'POST') { const d = safe(s, base), f = safe(s, path.posix.join(base, j.file)), n = f.toLowerCase(); if (/\.(zip|mrpack|jar)$/.test(n)) await unzipFile(f, d); else if (/\.(tar\.gz|tgz|tar\.xz|tar\.bz2|tar)$/.test(n)) await sh('tar', ['-xf', f, '-C', d], d); else bad('Dieses Archiv-Format wird nicht unterstützt (zip, tar, tar.gz).', 'file'); return send(res, 204) }
   if (sub === '/pull' && M === 'POST') {
     let u; try { u = new URL(j.url) } catch (e) { bad('Ungültige Adresse.', 'url') } if (!/^https?:$/.test(u.protocol)) bad('Nur http(s).', 'url');
     const d = safe(s, j.directory || base), name = (j.filename || decodeURIComponent(path.posix.basename(u.pathname)) || 'download').replace(/[\/\\]/g, '_');
@@ -993,6 +1164,7 @@ function mcPing(port, host, ms) {
 const tcpOpen = (port, ms) => new Promise(res => { const so = net.connect(port, '127.0.0.1'); const fin = v => { try { so.destroy() } catch (e) { } res(v) }; so.setTimeout(ms || 2000, () => fin(false)); so.on('connect', () => fin(true)); so.on('error', () => fin(false)) });
 async function probe(s) {
   const a = allocOf(s), port = a ? a.port : 0, e = EGGS[s.egg] || {}, st = rt(s).state;
+  if (e.bedrock) { const tr = String(envOf(s).BEDROCK_TRANSPORT || 'nethernet').toLowerCase(); if (st === 'offline') return { type: 'bedrock', port, state: st, online: false, err: 'aus', transport: tr }; if (tr !== 'raknet') return { type: 'bedrock', port, state: st, online: st === 'running', transport: tr, noPing: true }; return Object.assign({ type: 'bedrock', port, state: st, transport: tr }, await bedrockPing(port)) }
   if (s.egg === 16) return { type: 'ts3', port, state: st, online: st === 'running', query: +envOf(s).QUERY_PORT || 10011 };
   if (e.nest === 1) return Object.assign({ type: 'minecraft', port, state: st }, st === 'offline' ? { online: false, err: 'aus' } : await mcPing(port));
   if (s.egg === 7) {
