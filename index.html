@@ -2989,6 +2989,7 @@ function netStatus(pr,mc,ll){
   if(!pr)return'';
   if(pr.online){if(mc)return`<div class="nst on">${pr.favicon?`<img src="${esc(pr.favicon)}" alt="" width="40" height="40">`:`<span class="ib sm">${ico('cube',20)}</span>`}<span><b>● Online</b> · ${esc(pr.version||'Minecraft')} · ${pr.players?pr.players.online+' / '+pr.players.max+' Spieler':''}${pr.ms?' · '+pr.ms+' ms':''}<small>${esc(pr.motd||'')}${pr.players&&pr.players.sample&&pr.players.sample.length?' · '+esc(pr.players.sample.join(', ')):''}</small></span></div>`;
     if(ll)return`<div class="nst on"><span class="ib sm">${ico('music',20)}</span><span><b>● Bereit</b>${pr.version?' · Lavalink '+esc(pr.version):''}${pr.err?' · '+esc(pr.err):''}<small>${pr.sources&&pr.sources.length?'Quellen: '+esc(pr.sources.join(', ')):''}${pr.plugins&&pr.plugins.length?' · Plugins: '+esc(pr.plugins.join(', ')):''}</small></span></div>`;
+    if(pr.type==='bedrock')return`<div class="nst on"><span class="ib sm">${ico('cube',20)}</span><span><b>● ${pr.noPing?'Läuft':'Online'}</b> · ${esc(pr.version||'Minecraft Bedrock')}${pr.players&&!pr.noPing?' · '+pr.players.online+' / '+pr.players.max+' Spieler':''}<small>${pr.noPing?'Protokoll NetherNet (Mojang-Standard)':esc((pr.motd||'')+(pr.level?' · Welt: '+pr.level:''))}</small></span></div>`;
     if(pr.type==='ts3')return`<div class="nst on"><span class="ib sm">${ico('mic',20)}</span><span><b>● Läuft</b> · TeamSpeak 3<small>Verbinden: TeamSpeak → Verbindungen → Verbinden → Adresse unten (Port ${pr.port}, UDP). ServerQuery: Port ${pr.query}.</small></span></div>`;
     return`<div class="nst on"><span><b>● Erreichbar</b> auf Port ${pr.port}</span></div>`}
   return`<div class="nst"><span><b>○ ${pr.state==='offline'?'Server ist aus':pr.state==='starting'?'Startet …':'Antwortet (noch) nicht'}</b><small>${pr.state==='offline'?'Starte ihn in der Konsole – dann siehst du hier, ob er erreichbar ist.':pr.state==='starting'?'Gleich geht es los – Minecraft braucht beim ersten Start etwas länger.':pr.err&&pr.err!=='aus'?esc(pr.err):'Der Port ist noch nicht offen.'}</small></span></div>`}
@@ -3007,9 +3008,10 @@ function netConnect(d){
   if(d.hn&&d.hn.err==='old')return`<div class="ncard"><h3>${mc?'So verbinden sich Spieler':'Adressen des Servers'}</h3><div class="nrow"><span>${ico('server',18)}</span><div><small>Port des Servers</small><code>${port}</code></div>${cpyB(String(port))}</div><div class="banner"><b>Dein Handy-Panel ist veraltet.</b> Die IP-Adressen für Spieler, die automatische Portfreigabe im Router und der Test von außen brauchen Version 1.3 oder neuer. Das Update dauert nur ein paar Sekunden – deine Server laufen weiter.<button class="btn pri" data-a="hp-upd">${ico('down',18)}Handy-Panel jetzt aktualisieren</button></div></div>`;
   if(!n)return`<div class="banner er">Netzwerk-Infos nicht verfügbar: ${esc((d.hn&&d.hn.err)||'?')}</div>`;
   const lan=(n.lan.find(x=>!x.virt)||n.lan[0]||{}).ip,pub=n.public.v4,fw=(n.maps||[]).filter(m=>m.port===port),fok=fw.some(m=>m.ok!==false),ferr=fw.find(m=>m.ok===false);
-  const A=h=>mc?mcA(h,port):h+':'+port,row=(ic,l,v,sub)=>`<div class="nrow"><span title="${esc(l)}">${ico(ic,18)}</span><div><small>${l}</small><code>${esc(v)}</code>${sub?`<em>${sub}</em>`:''}</div>${cpyB(v)}</div>`;
+  const br=isBr(S.srv),A=h=>mc?mcA(h,port):h+':'+port,row=(ic,l,v,sub)=>`<div class="nrow"><span title="${esc(l)}">${ico(ic,18)}</span><div><small>${l}</small><code>${esc(v)}</code>${sub?`<em>${sub}</em>`:''}</div>${cpyB(v)}</div>`;
   let h=`<div class="ncard"><h3>${mc?'So verbinden sich Spieler':ll?'Lavalink erreichen':'Adressen des Servers'}</h3>${netStatus(d.pr,mc,ll)}`;
-  if(lan)h+=row('wifi','Im selben WLAN / Heimnetz',A(lan),mc?'Mehrspieler → Server hinzufügen':'');
+  if(br)h+=`<p class="st">In Minecraft (Bedrock): <b>Spielen → Server → Server hinzufügen</b> → Adresse = IP unten, Port = <b>${port}</b>.</p>`;
+  if(lan)h+=row('wifi','Im selben WLAN / Heimnetz',A(lan),mc?'Mehrspieler → Server hinzufügen':br?'IP '+lan+' · Port '+port:'');
   if(pub)h+=row('globe','Über das Internet',A(pub),fok?'✓ im Router freigegeben'+(n.upnp.router?' ('+esc(n.upnp.router)+')':''):ferr?'✗ Freigabe fehlgeschlagen: '+esc(ferr.err):'nur mit Portfreigabe im Router');
   if(n.public.v6)h+=row('globe','Internet (IPv6, nur wenn der Spieler auch IPv6 hat)',mc&&port==25565?n.public.v6:'['+n.public.v6+']:'+port,'');
   h+=row('server','Auf diesem Gerät',A('localhost'),'');
@@ -3017,8 +3019,9 @@ function netConnect(d){
   if(p25)h+=`<div class="banner">Tipp: Dein Server nutzt Port <b>${port}</b>. Mit <b>25565</b> (Minecraft-Standard) reicht Spielern die IP ohne Port.<button class="btn" data-a="net-prim" data-i="${esc(p25.id)}">${ico('check',18)}25565 als Hauptadresse</button></div>`;
   if(n.cgnat)h+=`<div class="banner"><b>Achtung: Dein Anschluss hat keine eigene öffentliche IPv4-Adresse</b> (CGNAT/DS-Lite, mobiles Netz oder doppelter Router). Portfreigaben wirken dann nicht von außen. Lösung: ein kostenloser Spiele-Tunnel wie <b>playit.gg</b> (siehe unten) oder beim Anbieter eine öffentliche IPv4 anfragen.</div>`;
   if(n.termux&&lan&&/^10\.|^100\./.test(lan)&&!/^10\.0\.|^10\.1\./.test(lan))h+=`<p class="st">Das Handy scheint über mobile Daten online zu sein – dann ist der Server nur über einen Tunnel (z. B. playit.gg) von außen erreichbar. Im WLAN klappt es direkt.</p>`;
-  h+=`<div class="grid2">${fok?`<button class="btn" data-a="net-up" data-p="${port}" data-on="0">${ico('x',18)}Freigabe entfernen</button>`:`<button class="btn pri" data-a="net-up" data-p="${port}" data-on="1"${n.upnp.state==='ok'?'':' title="Kein Router mit UPnP gefunden"'}>${ico('globe',18)}Im Router freigeben</button>`}${mc&&pub?`<button class="btn" data-a="net-chk" data-h="${esc(pub)}" data-p="${port}">${ico('check',18)}Von außen testen</button>`:`<button class="btn" data-a="net-rf">${ico('refresh',18)}Neu prüfen</button>`}</div>`;
+  h+=`<div class="grid2">${fok?`<button class="btn" data-a="net-up" data-p="${port}" data-on="0">${ico('x',18)}Freigabe entfernen</button>`:`<button class="btn pri" data-a="net-up" data-p="${port}" data-on="1"${n.upnp.state==='ok'?'':' title="Kein Router mit UPnP gefunden"'}>${ico('globe',18)}Im Router freigeben</button>`}${(mc||(br&&d.pr&&d.pr.transport==='raknet'))&&pub?`<button class="btn" data-a="net-chk" data-h="${esc(pub)}" data-p="${port}"${br?' data-br="1"':''}>${ico('check',18)}Von außen testen</button>`:`<button class="btn" data-a="net-rf">${ico('refresh',18)}Neu prüfen</button>`}</div>`;
   if(N.chk)h+=N.chk;
+  if(br&&d.pr&&d.pr.transport!=='raknet')h+=`<p class="st">Dieser Bedrock-Server nutzt Mojangs neues Protokoll (NetherNet). Den Test von außen und die Spielerzahl gibt es nur mit „raknet“ (Startup → Netzwerk-Protokoll).</p>`;
   h+=`<p class="st">Router: ${n.upnp.state==='ok'?'✓ '+esc(n.upnp.router||'gefunden')+' – automatische Portfreigabe (UPnP) möglich':n.upnp.state==='keins'?'kein Router mit UPnP gefunden – Freigabe von Hand (siehe unten)':'nicht erreichbar'+(n.upnp.err?' ('+esc(n.upnp.err)+')':'')}${n.upnp.external&&n.upnp.external!==pub?' · Router meldet IP '+esc(n.upnp.external):''}</p>`;
   if(ll){const pw=(d.pr&&d.pr.password)||'',hk=N.llh||'local',hh=hk==='local'?'127.0.0.1':hk==='lan'?(lan||'IP'):(pub||'IP'),k=N.lls||'shoukaku';
     h+=`<h3 style="margin-top:16px">Zugangsdaten für deinen Bot</h3><div class="kv">${kvr('Host',hh,1)}${kvr('Port',String(port),1)}<span>Passwort</span><span>${N.pw?esc(pw):'••••••••••'}</span><span style="display:flex;gap:4px"><button class="iconbtn" data-a="ll-pw" aria-label="Anzeigen">${ico('eye',16)}</button>${cpyB(pw)}</span>${kvr('Sicher (SSL)','nein')}</div>
@@ -3027,7 +3030,7 @@ function netConnect(d){
     <label>Beispiel</label><select id="lls">${LLS.map(([v,l])=>`<option value="${v}"${v===k?' selected':''}>${l}</option>`).join('')}</select>
     <div class="srcbox" style="white-space:pre-wrap;word-break:break-all;user-select:text;margin-top:8px">${esc(llSnip(k,hh,port,pw))}</div><button class="btn" data-a="cpy" data-v="${esc(llSnip(k,hh,port,pw))}">${ico('copy',18)}Beispiel kopieren</button>
     <p class="st">Läuft dein Bot im selben Handy-Panel (Node.js- oder Python-Server), nimm „auf diesem Gerät“. YouTube-Suche: <code>ytsearch:Lied</code>, SoundCloud: <code>scsearch:Lied</code>.</p>`}
-  h+=`<details class="dt"><summary>Port von Hand im Router freigeben</summary><p class="st">Falls der Knopf oben nicht klappt: Im Router eine Portfreigabe einrichten – Protokoll <b>TCP</b>${mc?' (Minecraft Java braucht TCP; UDP nur zusätzlich für Bedrock/Geyser)':''}, öffentlicher Port und Ziel-Port <b>${port}</b> (die Hauptadresse unten), an das Gerät <b>${esc(lan||'mit dem Panel')}</b>.<br>• <b>FRITZ!Box</b>: Internet → Freigaben → Portfreigaben → Gerät für Freigaben hinzufügen → Neue Freigabe → Portfreigabe.<br>• <b>Telekom Speedport</b>: Internet → Portfreischaltung.<br>• <b>Vodafone/andere</b>: meist unter „Port Forwarding“ oder „NAT“.<br>Danach mit „Von außen testen“ prüfen. Gib deinem Gerät im Router am besten eine feste IP, sonst passt die Freigabe nach einem Neustart evtl. nicht mehr.</p></details>
+  h+=`<details class="dt"><summary>Port von Hand im Router freigeben</summary><p class="st">Falls der Knopf oben nicht klappt: Im Router eine Portfreigabe einrichten – Protokoll ${br?'<b>UDP</b> (Bedrock nutzt nur UDP)':'<b>TCP</b>'+(mc?' (Minecraft Java braucht TCP; UDP nur zusätzlich für Bedrock/Geyser)':'')}, öffentlicher Port und Ziel-Port <b>${port}</b> (die Hauptadresse unten), an das Gerät <b>${esc(lan||'mit dem Panel')}</b>.<br>• <b>FRITZ!Box</b>: Internet → Freigaben → Portfreigaben → Gerät für Freigaben hinzufügen → Neue Freigabe → Portfreigabe.<br>• <b>Telekom Speedport</b>: Internet → Portfreischaltung.<br>• <b>Vodafone/andere</b>: meist unter „Port Forwarding“ oder „NAT“.<br>Danach mit „Von außen testen“ prüfen. Gib deinem Gerät im Router am besten eine feste IP, sonst passt die Freigabe nach einem Neustart evtl. nicht mehr.</p></details>
   <details class="dt"><summary>Kein Zugriff auf den Router? Spiele-Tunnel</summary><p class="st">Mit <b>playit.gg</b> (kostenlos) bekommt dein Server eine feste Adresse aus dem Internet – ganz ohne Portfreigabe, auch bei CGNAT oder mobilen Daten. Konto auf playit.gg anlegen, den „playit“-Agenten auf diesem Gerät installieren (Linux/Windows/Mac; auf Android über Termux), einen „Minecraft Java“-Tunnel auf <b>127.0.0.1:${port}</b> anlegen und die angezeigte Adresse an deine Freunde geben.<br>Der Fernzugriff des Handy-Panels gilt nur für die App, nicht für Spieler.</p></details></div>`;
   return h;
 }
@@ -3056,12 +3059,12 @@ async function netMenu(id){
 async function netUp(port,on,proto){
   if(on&&!await yes('Port im Router freigeben?','Port <b>'+port+'</b> wird über UPnP im Router geöffnet. Dann ist dein Server <b>aus dem ganzen Internet</b> erreichbar. Für Minecraft ist das gewollt – nutze trotzdem eine Whitelist, wenn nur Freunde spielen sollen.','Freigeben'))return;
   toast(on?'Frage den Router …':'Entferne Freigabe …');
-  if(await act(()=>api('POST','',{base:'/api/handy/upnp',json:{port,proto:proto||(isMc(S.srv)||isTs(S.srv)?'BOTH':'TCP'),on,name:S.srv.name},timeout:30000}),on?'✓ Im Router freigegeben':'Freigabe entfernt'))loadNet(true)}
+  if(await act(()=>api('POST','',{base:'/api/handy/upnp',json:{port,proto:proto||(isBr(S.srv)?'UDP':isMc(S.srv)||isTs(S.srv)?'BOTH':'TCP'),on,name:S.srv.name},timeout:30000}),on?'✓ Im Router freigegeben':'Freigabe entfernt'))loadNet(true)}
 // Prüft über mcsrvstat.us (von außen), ob Spieler den Server erreichen
-async function netChk(h,port){
+async function netChk(h,port,br){
   const N=S.nx||(S.nx={}),pr=S.ld.net&&S.ld.net.data&&S.ld.net.data.pr;
   if(S.state==='offline'||(!S.state&&pr&&pr.state==='offline')){N.chk=`<div class="diag">${dg('er','Der Server ist aus','Ein ausgeschalteter Server ist von außen nie erreichbar. Starte ihn (Konsole → Start), warte bis er fertig geladen ist („Done“) und teste dann noch einmal.')}</div>`;redraw('net');return}N.chk=`<div class="diag">${dg('..','Teste '+esc(h+':'+port)+' von außen …')}</div>`;redraw('net');
-  try{const r=await fetch('https://api.mcsrvstat.us/3/'+encodeURIComponent(h+':'+port),{cache:'no-store'}),j=await r.json();
+  try{const r=await fetch('https://api.mcsrvstat.us/'+(br?'bedrock/':'')+'3/'+encodeURIComponent(h+':'+port),{cache:'no-store'}),j=await r.json();
     N.chk=j.online?`<div class="diag">${dg('ok','Von außen erreichbar ✓',esc((j.version||'')+' · '+((j.players&&j.players.online)||0)+' / '+((j.players&&j.players.max)||0)+' Spieler'+(j.motd&&j.motd.clean?' · '+j.motd.clean.join(' '):'')))}</div>`
      :`<div class="diag">${dg('er','Von außen nicht erreichbar',(j.debug&&j.debug.ping===false&&j.debug.query===false?'Keine Antwort auf '+esc(h+':'+port)+'. ':'')+'Prüfe: Ist im Router <b>TCP</b>-Port '+port+' an dieses Gerät weitergeleitet (UDP allein reicht für Minecraft Java nicht)? Ist es dieselbe Geräte-IP wie oben unter „WLAN“? Bei CGNAT/mobilem Netz geht es nur über einen Tunnel. Wichtig: Der Prüfdienst merkt sich ein Ergebnis bis zu 5 Minuten – nach einer Änderung kurz warten, dann erneut testen.')}</div>`}
   catch(e){N.chk=`<div class="diag">${dg('er','Test nicht möglich','Der Prüfdienst mcsrvstat.us ist nicht erreichbar.')}</div>`}
@@ -3074,7 +3077,7 @@ function drawSta(){
     const m=d.meta,imgs=Object.entries(m.docker_images||{}),cur0=S.srv.image,upd=can('startup.update'),di=can('startup.docker-image');
     return hd('Startup')
      +`<label>Startbefehl</label><div class="srcbox" style="user-select:text;white-space:pre-wrap;word-break:break-all">${esc(m.startup_command||m.raw_startup_command||'–')}</div>
-     ${imgs.length>1||(imgs.length===1&&imgs[0][1]!==cur0)?`<label>Docker-Image</label><select id="dimg"${di?'':' disabled'}>${imgs.map(([l,v])=>`<option value="${esc(v)}"${v===cur0?' selected':''}>${esc(l)}</option>`).join('')}${imgs.some(x=>x[1]===cur0)?'':`<option value="${esc(cur0)}" selected>${esc(cur0||'?')}</option>`}</select>`:''}
+     ${imgs.length>1||(imgs.length===1&&imgs[0][1]!==cur0)?`<label>${hpNow()?'Java-Version':'Docker-Image'}</label><select id="dimg"${di?'':' disabled'}>${imgs.map(([l,v])=>`<option value="${esc(v)}"${v===cur0?' selected':''}>${esc(l)}</option>`).join('')}${imgs.some(x=>x[1]===cur0)?'':`<option value="${esc(cur0)}" selected>${esc(cur0||'?')}</option>`}</select>`:''}
      ${hd('Variablen',d.vars.length)}
      <div class="list">${d.vars.map(v=>`<div class="item"><button class="itb" data-a="var-edit" data-k="${esc(v.env_variable)}"><span class="tx"><b>${esc(v.name)}${v.is_editable?'':'<span class="tag">gesperrt</span>'}</b><small>${esc(v.server_value!=null&&v.server_value!==''?v.server_value:(v.default_value||'–'))}</small></span></button>${upd&&v.is_editable?ico('edit',16):ico('lock',16)}</div>`).join('')}</div>${d.vars.length?'':'<p class="empty">Keine Variablen.</p>'}`;
   });
@@ -3131,7 +3134,7 @@ Object.assign(H,{
   'db-new':()=>dbNew(),'db-open':b=>dbOpen(b.dataset.i),
   'net-new':async()=>{if(await act(()=>api('POST',SP('/network/allocations')),'Adresse zugewiesen'))loadNet(true)},'net-menu':b=>netMenu(b.dataset.i),
   'net-up':b=>netUp(+b.dataset.p,b.dataset.on==='1'),
-  'net-prim':async b=>{if(await act(()=>api('POST',SP('/network/allocations/'+encodeURIComponent(b.dataset.i)+'/primary')),'Hauptadresse ist jetzt 25565 – gilt nach einem Neustart des Servers')){S.nx={};loadNet(true)}},'net-chk':b=>netChk(b.dataset.h,+b.dataset.p),'net-rf':()=>{S.netRf=1;S.nx={};loadNet()},
+  'net-prim':async b=>{if(await act(()=>api('POST',SP('/network/allocations/'+encodeURIComponent(b.dataset.i)+'/primary')),'Hauptadresse ist jetzt 25565 – gilt nach einem Neustart des Servers')){S.nx={};loadNet(true)}},'net-chk':b=>netChk(b.dataset.h,+b.dataset.p,b.dataset.br==='1'),'net-rf':()=>{S.netRf=1;S.nx={};loadNet()},
   'll-pw':()=>{const N=S.nx||(S.nx={});N.pw=!N.pw;redraw('net')},
   'var-edit':b=>varEdit(b.dataset.k),
   'set-ren':()=>setRen(),'set-rei':()=>setRei(),
@@ -3140,14 +3143,15 @@ Object.assign(H,{
 /* ----- Minecraft: Plugins & Mods von Modrinth ----- */
 Object.assign(P,{cube:'<path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/>',wifi:'<path d="M2 9a15 15 0 0120 0M5 12.5a10 10 0 0114 0M8.5 16a5 5 0 017 0"/><circle cx="12" cy="19.5" r="1"/>',music:'<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',users2:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0"/>',puzzle:'<path d="M10 3a2 2 0 014 0v2h4a1 1 0 011 1v4h-2a2 2 0 000 4h2v4a1 1 0 01-1 1h-4v-2a2 2 0 00-4 0v2H6a1 1 0 01-1-1v-4h2a2 2 0 000-4H5V6a1 1 0 011-1h4z"/>'});
 const MR='https://api.modrinth.com/v2';
-const LOADERS={paper:['paper','purpur','spigot','bukkit','folia'],fabric:['fabric'],forge:['forge'],neoforge:['neoforge'],velocity:['velocity']};
-const LNAME={paper:'Paper/Spigot (Plugins)',fabric:'Fabric (Mods)',forge:'Forge (Mods)',neoforge:'NeoForge (Mods)',velocity:'Velocity (Proxy-Plugins)'};
-const isModL=l=>['fabric','forge','neoforge'].includes(l);
-const eggLoader=e=>/paper|purpur|folia|spigot|bukkit/i.test(e)?'paper':/fabric|quilt/i.test(e)?'fabric':/neoforge/i.test(e)?'neoforge':/forge/i.test(e)?'forge':/velocity/i.test(e)?'velocity':/vanilla/i.test(e)?'':null;
+const LOADERS={paper:['paper','purpur','spigot','bukkit','folia'],fabric:['fabric'],quilt:['quilt','fabric'],forge:['forge'],neoforge:['neoforge'],velocity:['velocity']};
+const LNAME={paper:'Paper/Spigot (Plugins)',fabric:'Fabric (Mods)',quilt:'Quilt (Mods)',forge:'Forge (Mods)',neoforge:'NeoForge (Mods)',velocity:'Velocity (Proxy-Plugins)'};
+const isModL=l=>['fabric','quilt','forge','neoforge'].includes(l);
+const eggLoader=e=>/paper|purpur|folia|spigot|bukkit|arclight/i.test(e)?'paper':/quilt/i.test(e)?'quilt':/fabric/i.test(e)?'fabric':/neoforge/i.test(e)?'neoforge':/forge/i.test(e)?'forge':/velocity/i.test(e)?'velocity':/vanilla|snapshot/i.test(e)?'':null;
 const isLl=s=>/lavalink/i.test((s&&(s.egg+' '+s.inv))||'');
 const isProxy=s=>/velocity|bungee|waterfall/i.test((s&&(s.egg+' '+s.inv))||'');
 const isTs=s=>/teamspeak|ts3server/i.test((s&&(s.egg+' '+s.inv))||'');
-const isMc=s=>!!s&&!isLl(s)&&!/java-programm|\{\{JARFILE\}\}/i.test(s.egg||'')&&(/paper|purpur|vanilla|fabric|forge|velocity/i.test(s.egg||'')||(!s.egg&&/java|\.jar\b/i.test(s.inv||s.image||'')));
+const isBr=s=>/bedrock/i.test((s&&(s.egg+' '+s.inv))||'');
+const isMc=s=>!!s&&!isLl(s)&&!isBr(s)&&!/java-programm|\{\{JARFILE\}\}/i.test(s.egg||'')&&(/paper|purpur|spigot|vanilla|snapshot|fabric|quilt|forge|arclight|modpack|velocity/i.test(s.egg||'')||(!s.egg&&/java|\.jar\b/i.test(s.inv||s.image||'')));
 const enc2=encodeURIComponent;
 // Art (Paper/Fabric) und Minecraft-Version eines Servers erkennen
 async function mcInfo(p,id,eg){
@@ -3155,14 +3159,16 @@ async function mcInfo(p,id,eg){
   if(eg==null){const l=S.list&&S.list.find(x=>x.id===id);if(l)eg=l.egg||''}
   const root=lst(await api('GET',sp('/files/list'),{p,q:{directory:'/'}})).map(mapF),has=n=>root.some(x=>x.name===n&&!x.file),hasF=n=>root.some(x=>x.name===n&&x.file);
   let ver=null,txt=async f=>{try{return String(await api('GET',sp('/files/contents'),{p,q:{file:f},as:'text',timeout:20000})||'')}catch(e){return''}};
-  let loader=eg?eggLoader(eg):null;const known=loader!=null;if(loader==='')loader=null;
+  let loader=eg?eggLoader(eg):null;
+  if(loader==null&&hasF('start_args.txt')){const m0=/#\s*Toolbox:\s*loader=(\w+)/.exec(await txt('/start_args.txt'));if(m0)loader=m0[1]==='vanilla'?'':m0[1]}
+  const known=loader!=null;if(loader==='')loader=null;
   if(!known){
     if(hasF('velocity.toml'))loader='velocity';
     else if(hasF('start_args.txt')||hasF('user_jvm_args.txt')){const a=await txt('/start_args.txt');loader=/neoforge/i.test(a)?'neoforge':/minecraftforge|fmlloader|forge/i.test(a)?'forge':has('mods')?'forge':null}
     else loader=has('plugins')?'paper':has('mods')?'fabric':null;
     if(!loader){if(root.some(x=>/fabric/i.test(x.name)||x.name==='.fabric'))loader='fabric';else if(root.some(x=>/paper|purpur|spigot|bukkit/i.test(x.name)||x.name==='version_history.json'))loader='paper'}}
   const vh=root.some(x=>x.name==='version_history.json')?await txt('/version_history.json'):'';let m=/MC:\s*([\w.\-]+)\)/.exec(vh);if(m)ver=m[1];
-  if(!ver&&hasF('start_args.txt')){m=/fml\.mcVersion[=\s]+([\d.]+)/.exec(await txt('/start_args.txt'));if(m)ver=m[1]} // Forge/NeoForge
+  if(!ver&&hasF('start_args.txt')){const sa=await txt('/start_args.txt');m=/#\s*Toolbox:.*\bmc=([\w.\-]+)/.exec(sa)||/fml\.mcVersion[=\s]+([\d.]+)/.exec(sa);if(m)ver=m[1]} // Forge/NeoForge/Modpacks/Quilt
   if(loader!=='velocity'&&(!ver||(!loader&&!known))){const lg=await txt('/logs/latest.log');m=/Starting minecraft server version ([\w.\-]+)/.exec(lg);if(m&&!ver)ver=m[1];if(!known&&!loader){if(/NeoForge|neoforged/.test(lg))loader='neoforge';else if(/MinecraftForge|Forge Mod Loader|fmlloader/i.test(lg))loader='forge';else if(/Paper|Purpur|Spigot|Bukkit|CraftBukkit/.test(lg))loader='paper';else if(/Fabric Loader|fabricloader/i.test(lg))loader='fabric'}}
   if(!ver&&loader!=='velocity'){try{const v=lst(await api('GET',sp('/startup'),{p})).find(x=>/MINECRAFT_VERSION|MC_VERSION|^VERSION$/.test(x.env_variable||''));const val=v&&(v.server_value||v.default_value);if(val&&/^\d/.test(val))ver=val}catch(e){}}
   return{loader,version:loader==='velocity'?null:ver,dir:isModL(loader)?'/mods':'/plugins'};
@@ -3529,7 +3535,7 @@ function drawNew(){
   <p class="ai-sec">Art des Servers</p>
   <label>Egg (Vorlage)</label><select data-nf="egg" id="negg">${N.eggs.map(e=>`<option value="${e.nest}/${e.id}"${f.egg===e.nest+'/'+e.id?' selected':''}>${esc(e.nn)} · ${esc(e.name)}</option>`).join('')}</select>
   ${!N.eggs.length?'<div class="banner">Im Panel gibt es noch keine Eggs.</div>':''}
-  ${eg?eg.err?`<p class="st err">${esc(eg.err)}</p>`:`${imgs.length?`<label>Docker-Image</label><select data-nf="image">${imgs.map(([k,i])=>`<option value="${esc(i)}"${i===f.image?' selected':''}>${esc(k)}</option>`).join('')}</select>`:inp('image','Docker-Image')}
+  ${eg?eg.err?`<p class="st err">${esc(eg.err)}</p>`:`${imgs.length?`<label>${hpNow()?'Java-Version':'Docker-Image'}</label><select data-nf="image">${imgs.map(([k,i])=>`<option value="${esc(i)}"${i===f.image?' selected':''}>${esc(k)}</option>`).join('')}</select>`:inp('image','Docker-Image')}
     <label>Startbefehl</label><textarea data-nf="startup" rows="2" class="code">${esc(f.startup)}</textarea>
     ${vars.map(v=>`<label>${esc(v.name)}${/required/.test(v.rules||'')?' *':''}</label>${/in:true,false|in:false,true/.test(v.rules||'')?`<select data-ne="${esc(v.env_variable)}"><option value="true"${f.env[v.env_variable]==='true'?' selected':''}>Ja</option><option value="false"${f.env[v.env_variable]!=='true'?' selected':''}>Nein</option></select>`:`<input data-ne="${esc(v.env_variable)}" value="${esc(f.env[v.env_variable]||'')}" autocomplete="off" autocapitalize="off" spellcheck="false">`}<p class="ai-hint">${esc((v.description||'').slice(0,200))} <code>${esc(v.env_variable)}</code></p>`).join('')}`:'<p class="st">Lade Egg …</p>'}
   <p class="ai-sec">Ressourcen</p>
@@ -3733,7 +3739,7 @@ async function hpScan(){const t=await UI.scanQR({hint:'Scanne den QR-Code, den d
 function drawHp(){
   const h=S.hp||(S.hp={os:myOS()==='ios'?'win':myOS(),fern:myOS()!=='android',java:false,url:'',key:''}),os=h.os;
   const cb=c=>`<div class="hpc"><code>${esc(c)}</code><button class="btn" data-a="cpy" data-v="${esc(c)}" aria-label="Kopieren">${ico('copy',16)}</button></div>`;
-  const cmd=hpCmd(os,h);
+  const cmd=hpCmd(os,os==='android'?h:Object.assign({},h,{java:false}));
   const how={android:`<div class="step"><b>1</b><div><p><b>Termux</b> aus <b>F-Droid</b> installieren (die Play-Store-Version ist veraltet). Optional zusätzlich <b>Termux:Boot</b> – dann startet das Panel nach dem Neustart des Handys von selbst.</p></div></div>
       <div class="step"><b>2</b><div><p>Termux öffnen, diesen <b>einen Befehl</b> einfügen (lange tippen → Einfügen) und Enter drücken:</p>${cb(cmd)}<p class="st">Dauert beim ersten Mal 1–3 Minuten. Danach öffnet sich diese App von selbst und ist verbunden.</p></div></div>`,
     win:`<div class="step"><b>1</b><div><p><b>PowerShell</b> öffnen: Windows-Taste drücken, „PowerShell“ tippen, Enter. Admin-Rechte braucht es nicht.</p></div></div>
@@ -3750,7 +3756,7 @@ function drawHp(){
   <div class="seg" id="hpos">${HPOS.map(([k,l])=>`<button data-v="${k}"${k===os?' class="on"':''}>${l}</button>`).join('')}</div>
   ${how}
   <label class="chk"><input type="checkbox" data-hp="fern"${h.fern?' checked':''}>Fernzugriff gleich einschalten – zum Steuern von unterwegs oder von einem anderen Gerät (z. B. dein Handy steuert den PC)</label>
-  <label class="chk"><input type="checkbox" data-hp="java"${h.java?' checked':''}>Java 21 mitinstallieren (für Minecraft-Server)</label>
+  ${os==='android'?`<label class="chk"><input type="checkbox" data-hp="java"${h.java?' checked':''}>Java mitinstallieren (für Minecraft-Server)</label>`:'<p class="st">Java für Minecraft & Co. lädt das Panel auf PC, Linux und Mac bei Bedarf automatisch – in genau der Version, die der Server braucht.</p>'}
   <div class="step"><b>3</b><div><p>${os==='android'?'Hat sich die App nicht von selbst geöffnet? Dann den Link aus Termux antippen oder den Code oben einfügen.':'Den QR-Code mit dieser App scannen (oben) – oder den Link/Code einfügen. Läuft die App auf demselben PC, reicht ein Klick auf „In der App öffnen“.'}</p></div></div>
   <details class="dt"><summary>Von außen erreichen (IP und Port)</summary><p class="st">${MIXED}<br><br>Eigene Domain mit HTTPS (z. B. per Caddy oder nginx vor dem Panel)? Dann trage sie unten unter „Manuell verbinden“ ein.</p></details>
   <details class="dt"><summary>Manuell verbinden (Adresse und Schlüssel)</summary>
@@ -4377,7 +4383,7 @@ async function srvIdx(a,force){
   const ps=tbSrv.profiles().filter(p=>!k||p.id===k);if(!ps.length)throw Error('Es gibt noch keine Server-Verbindung. Der Nutzer richtet sie im Werkzeug „Server“ ein.');
   const l=[];
   for(const p of ps){try{(await tbSrv.servers(p.id)).forEach(s=>{const al=s.allocs&&(s.allocs.find(x=>x.is_default)||s.allocs[0]);
-      const e=s.egg||'',ll=/lavalink/i.test(e+' '+(s.inv||'')),mc=!ll&&!/java-programm/i.test(e)&&(/paper|purpur|vanilla|fabric|forge|velocity/i.test(e)||(!e&&/java|\.jar\b/i.test(s.inv||s.image||'')));l.push({pid:p.id,pn:p.name,admin:p.admin,hp:p.hp,id:s.id,name:s.name,egg:e,state:s.suspended?'gesperrt':s.status?s.status:((s.res&&s.res.current_state)||'unbekannt'),ll,mc,port:al?(p.hp?'Port '+al.port:(al.ip_alias||al.ip)+':'+al.port):'',lim:s.limits||{}})})}
+      const e=s.egg||'',ll=/lavalink/i.test(e+' '+(s.inv||'')),mc=!ll&&!/java-programm|bedrock/i.test(e)&&(/paper|purpur|spigot|vanilla|snapshot|fabric|quilt|forge|arclight|modpack|velocity/i.test(e)||(!e&&/java|\.jar\b/i.test(s.inv||s.image||'')));l.push({pid:p.id,pn:p.name,admin:p.admin,hp:p.hp,id:s.id,name:s.name,egg:e,state:s.suspended?'gesperrt':s.status?s.status:((s.res&&s.res.current_state)||'unbekannt'),ll,mc,port:al?(p.hp?'Port '+al.port:(al.ip_alias||al.ip)+':'+al.port):'',lim:s.limits||{}})})}
     catch(e){l.push({pid:p.id,pn:p.name,admin:p.admin,err:fe(e)})}}
   SRVC={t:Date.now(),l,k};return l}
 function srvPick(l,q){q=String(q||'').trim().toLowerCase().replace(/^[\["„]+|[\]"“]+$/g,'');const ok=l.filter(x=>!x.err);
@@ -4526,7 +4532,7 @@ function srvPrompt(a){
 <tool name="server_write" server="ID" path="DATEI">INHALT</tool> – Datei schreiben (z. B. Plugin-Konfiguration)
 <tool name="server_delete_file" server="ID" path="DATEI"/> – Datei löschen
 <tool name="plugin_install" server="ID" plugin="SLUG"/> – Plugin/Mod installieren (slug aus plugin_search), danach neu starten
-<tool name="server_create" server="NAME" type="paper" version="1.21.4" memory="2048"/> – neuen Server erstellen (type: paper, purpur, vanilla, fabric, forge, neoforge, velocity, lavalink, discord-bot, webseite, teamspeak, node.js, python, java …; version optional, sonst neueste)
+<tool name="server_create" server="NAME" type="paper" version="1.21.4" memory="2048"/> – neuen Server erstellen (type: paper, purpur, spigot, vanilla, snapshot, fabric, quilt, forge, neoforge, arclight, modpack (mit modpack="NAME von modrinth.com"), velocity, bedrock, lavalink, discord-bot, webseite, teamspeak, node.js, python, java …; version optional, sonst neueste)
 <tool name="mc_settings" server="ID" max-players="10" white-list="true" motd="Text"/> – Minecraft-Einstellungen setzen (Schlüssel wie in server.properties, z. B. difficulty, gamemode, pvp, view-distance, level-seed)
 <tool name="server_variable" server="ID" key="MINECRAFT_VERSION" value="1.21.4"/> – Start-Variable setzen (danach bei Versionen server_reinstall)
 <tool name="server_reinstall" server="ID"/> – neu installieren (z. B. andere Version)
@@ -5035,7 +5041,7 @@ tool({id:'set',sys:1,icon:'sliders',title:'Einstellungen',desc:'Design, Textgrö
   <label>Standard-Verschlüsselung</label><select id="al">${Object.entries(ALGS).map(([k,v])=>`<option value="${k}"${k===SET.alg?' selected':''}>${v.n}</option>`).join('')}</select>
   <label>Daten</label><button id="rs" class="btn">${ico('trash',18)}Alle Daten zurücksetzen</button>
   <p class="st">Löscht Notizen, eigene Stile, Server-Verbindungen (samt API-Schlüsseln), die Daten der AI Agents (Chats, Arbeitsbereiche, Wissen), Chat-Kontakte samt Verlauf und Einstellungen von diesem Gerät. Erstelle vorher ein Backup. Heruntergeladene KI-Modelle bleiben erhalten – die löschst du unter AI Agents → Modelle.</p>
-  <p class="foot">Toolbox · Version 1.10.1</p>`;
+  <p class="foot">Toolbox · Version 1.11</p>`;
   el.onclick=e=>{const b=e.target.closest('button');if(!b)return;const g=b.closest('.seg');
     if(g){const k=g.dataset.k;SET[k]=k==='z'?+b.dataset.v:b.dataset.v;g.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));saveSet();if(k==='nt'&&SET.nt==='on')askNt(g)}
     else if(b.dataset.ac!=null){SET.ac=+b.dataset.ac;el.querySelectorAll('.sw').forEach(x=>x.classList.toggle('on',x===b));saveSet()}

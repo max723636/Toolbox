@@ -1,6 +1,17 @@
 TOOLBOX – so wird daraus eine App
 
-NEU in Version 1.10:
+NEU in Version 1.11 – alle Server-Arten wie bei Aternos & Co.:
+- Minecraft Java: Vanilla, Snapshot, Paper, Spigot, Purpur, Fabric, Quilt, NeoForge, Forge, Arclight
+  (Mods + Plugins), Modpacks von modrinth.com und Velocity (Proxy).
+- Minecraft Bedrock: Bedrock und Bedrock Preview (offizieller Server von Mojang).
+- Java automatisch: Neue Minecraft-Versionen (26.x) brauchen Java 25, ältere Java 21, 17 oder 8. Auf PC,
+  Linux und Mac lädt das Panel die passende Java-Version für jeden Server selbst (Eclipse Temurin, im
+  Ordner handy-panel/javas). Unter Startup → „Java-Version“ kannst du sie pro Server festlegen.
+  Auf dem Handy (Termux): pkg install openjdk-21 (für Minecraft 26: openjdk-25, falls es das Paket gibt).
+- Die Installation jedes Servers wird zusätzlich in .hp/install.log gespeichert.
+  WICHTIG: Handy-Panel einmal aktualisieren (Serverliste → „Jetzt aktualisieren“).
+
+Version 1.10:
 - Viele neue Vorlagen im Handy-Panel (1.4):
   Minecraft: Purpur, Forge, NeoForge (Modpacks) und Velocity (Proxy für Server-Netzwerke) – zusätzlich zu
   Paper, Vanilla und Fabric. Forge/NeoForge wählen automatisch die passende Version zu deinem Java.
@@ -269,6 +280,25 @@ Server öffnen > Reiter „Netzwerk“. Beim Handy-Panel siehst du:
 - Hat dein Anschluss keine eigene öffentliche IPv4 (CGNAT/DS-Lite, mobile Daten), warnt die App –
   dann hilft ein Spiele-Tunnel wie playit.gg (Anleitung im Reiter).
 - Weitere Ports (z. B. für Bedrock/Geyser, Voice-Chat, Dynmap) lassen sich dem Server zuweisen.
+
+SERVER-ARTEN IM HANDY-PANEL (STAND 1.11)
+Minecraft Java (alle wählen automatisch die neueste Version, die auf deinem Gerät läuft – oder eine feste
+Version unter Startup → Minecraft-Version):
+  Vanilla .......... Original von Mojang          Snapshot ...... neueste Test-Version
+  Paper ............ schnell, Plugins (empfohlen) Spigot ........ klassisch, Plugins – wird bei der
+  Purpur ........... Paper + Extras, Plugins                         Installation gebaut (5–15 Min., braucht Git)
+  Fabric / Quilt ... leichte Mods                 NeoForge/Forge  große Mods und Modpacks
+  Arclight ......... Mods UND Plugins zugleich    Velocity ...... Proxy, verbindet mehrere Server
+  Modpack (Modrinth) Name oder Link von modrinth.com eintragen (z. B. cobblemon-fabric) – Mod-Loader,
+                     alle Mods und Einstellungen werden installiert. CurseForge-Packs: auf Modrinth suchen
+                     oder die .mrpack-Datei/Server-Datei selbst hochladen.
+Minecraft Bedrock (offizieller Server, nur PC/Linux mit Intel/AMD – nicht auf dem Handy):
+  Bedrock / Bedrock Preview. Spieler geben IP und Port (UDP, Standard 19132) ein. Allowlist ist anfangs aus.
+  Netzwerk-Protokoll unter Startup: „nethernet“ (Mojang-Standard) oder „raknet“ (klassisch, nötig für die
+  Spielerzahl im Netzwerk-Reiter und „Von außen testen“).
+  Bedrock-Spieler auf dem Handy-Server? Paper-Server + im Reiter „Plugins“ Geyser und Floodgate installieren.
+Nicht möglich: die Aternos-eigenen „Blueprints“ (z. B. Arena) – das sind Inhalte von Aternos. Ähnliches
+bekommst du über Plugins (Reiter „Plugins“) oder Modpacks.
 
 LAVALINK HOSTEN (NEU IN 1.9)
 Lavalink ist ein Musik-Server für Discord-Bots (Java 17 oder neuer nötig).
