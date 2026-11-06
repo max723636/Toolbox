@@ -1,5 +1,16 @@
 TOOLBOX – so wird daraus eine App
 
+NEU in Version 1.11.1:
+- Server-Arten, die auf deinem Gerät nicht laufen (z. B. Bedrock auf dem Handy), sind im Assistenten als
+  „nicht auf diesem Gerät“ markiert und lassen sich nicht mehr anlegen – mit Erklärung warum.
+- Schlägt eine Installation fehl, zeigt die App das Installations-Protokoll mit dem Grund sowie die Knöpfe
+  „Neu installieren“ und „Server löschen“. Während der Installation läuft das Protokoll live mit.
+- Bedrock-Spieler auf Java-Servern (auch auf dem Handy): Minecraft → „Bedrock-Spieler erlauben (Geyser)“
+  installiert Geyser + Floodgate und weist Port 19132 zu. Bedrock-Spieler nehmen dieselbe IP, Port 19132
+  (UDP). Der Netzwerk-Reiter zeigt die Adresse und gibt den Port im Router frei.
+- Auswahlfelder statt Texteingabe für feste Optionen (z. B. Netzwerk-Protokoll), und die Java-Auswahl
+  erscheint nur noch bei Java-Servern.
+
 NEU in Version 1.11 – alle Server-Arten wie bei Aternos & Co.:
 - Minecraft Java: Vanilla, Snapshot, Paper, Spigot, Purpur, Fabric, Quilt, NeoForge, Forge, Arclight
   (Mods + Plugins), Modpacks von modrinth.com und Velocity (Proxy).

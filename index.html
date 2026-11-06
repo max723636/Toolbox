@@ -2233,10 +2233,15 @@ async function loadDetail(id){
   /* Gesperrt, in Wartung, wird installiert …: das Panel lässt dann nichts außer der Anzeige zu */
   if(S.srv&&S.srv.id===id)S.blk=!S.detErr&&!!(S.srv.suspended||S.srv.maint||S.srv.status);
 }
+// Handy-Panel: Installations-Protokoll (.hp/install.log) anzeigen, während der Installation laufend
+async function ilogLoad(){const id=S.srv&&S.srv.id;if(!id||S.ilogBusy)return;S.ilogBusy=1;
+  try{const t=await api('GET',SP('/files/contents'),{q:{file:'/.hp/install.log'},as:'text',timeout:10000});S.ilog=String(t||'').split('\n').slice(-60).join('\n').trim()||'(noch leer)'}catch(e){S.ilog=e&&e.status===404?'Kein Protokoll vorhanden (ältere Panel-Version – bitte das Handy-Panel aktualisieren).':fe(e)}
+  S.ilogBusy=0;if(!S.srv||S.srv.id!==id)return;const box=$('#ilog',el);if(box){box.textContent=S.ilog;box.scrollTop=box.scrollHeight}
+  if(S.srv.status==='installing'){clearTimeout(S.ilT);S.ilT=setTimeout(async()=>{if(!S.srv||S.srv.id!==id||S.scr!=='server')return;await loadDetail(id);if(!S.srv||S.srv.id!==id)return;drawTop();drawTabs();drawBody();if(!S.blk)startLive()},3000)}}
 function closeSrv(){
   S.wsGen=++GEN;S.stopWs=1;
   if(S.ws){try{S.ws.onclose=S.ws.onmessage=S.ws.onerror=null;S.ws.close()}catch(e){}S.ws=null}
-  clearTimeout(S.rt);clearInterval(S.hb);clearInterval(S.pt);clearTimeout(S.sg);clearTimeout(S.bkT);clearInterval(S.inT);
+  clearTimeout(S.rt);clearInterval(S.hb);clearInterval(S.pt);clearTimeout(S.sg);clearTimeout(S.bkT);clearInterval(S.inT);clearTimeout(S.ilT);S.ilog='';
   S.wsState='idle';
 }
 const statBox=()=>{const lim=S.srv.limits||{},st=S.st,pc=(v,l)=>l?Math.min(100,v/l*100):0;
@@ -2261,7 +2266,7 @@ function drawTop(){
   const t=$('#svT',el);if(!t)return;const s=S.srv,[lab,cls]=srvStatus(s,S.state),off=S.state==='offline',ready=!s.suspended&&!s.status;
   const pb=(sig,l,ic,on,perm)=>`<button class="btn" data-a="pw" data-s="${sig}"${on&&can(perm)&&ready?'':' disabled'}>${ico(ic,20)}${l}</button>`;
   const wl=wsLab();
-  const warn=s.suspended?'<div class="banner er"><b>Dieser Server ist gesperrt.</b> Wende dich an den Betreiber des Hosters.</div>':s.status==='installing'?'<div class="banner"><b>Der Server wird gerade installiert.</b> Das kann einige Minuten dauern.</div>':/failed/.test(s.status||'')?'<div class="banner er"><b>Die Installation ist fehlgeschlagen.</b> Das muss im Panel oder vom Hoster behoben werden.</div>':s.status==='restoring_backup'?'<div class="banner"><b>Ein Backup wird gerade eingespielt.</b></div>':s.maint?'<div class="banner"><b>Der Server-Knoten wird gewartet.</b> Solange das dauert, lässt sich der Server hier nicht bedienen.</div>':'';
+  const warn=s.suspended?'<div class="banner er"><b>Dieser Server ist gesperrt.</b> Wende dich an den Betreiber des Hosters.</div>':s.status==='installing'?'<div class="banner"><b>Der Server wird gerade installiert.</b> Das kann einige Minuten dauern.</div>':/failed/.test(s.status||'')?'<div class="banner er"><b>Die Installation ist fehlgeschlagen.</b> '+(hpNow()?'Den Grund siehst du unten.':'Das muss im Panel oder vom Hoster behoben werden.')+'</div>':s.status==='restoring_backup'?'<div class="banner"><b>Ein Backup wird gerade eingespielt.</b></div>':s.maint?'<div class="banner"><b>Der Server-Knoten wird gewartet.</b> Solange das dauert, lässt sich der Server hier nicht bedienen.</div>':'';
   t.innerHTML=`<div class="sv-h"><button class="iconbtn" data-a="up" aria-label="Zurück">${ico('back',20)}</button><span class="dot ${cls}"></span><h2>${esc(s.name)}</h2></div>
   <p class="sv-sub">${esc(lab)}${wl?` · ${esc(wl)}`:''}${s.node?' · '+esc(s.node):''}</p>${warn}
   ${S.tab==='con'&&!S.blk?`<div class="pw">${pb('start','Start','play',off,'control.start')}${pb('restart','Neustart','refresh',!off,'control.restart')}${pb('stop','Stopp','stop',!off,'control.stop')}${pb('kill','Kill','x',!off,'control.stop')}</div>
@@ -2277,7 +2282,11 @@ function drawBody(){
   const b=$('#svB',el);if(!b)return;
   if(S.detErr){b.innerHTML=`<div class="banner er"><b>Server konnte nicht geladen werden.</b><br>${esc(S.detErr)}<button class="btn" data-a="retry-srv">${ico('refresh',18)}Erneut versuchen</button></div>`;return}
   if(!S.perm){b.innerHTML='<p class="empty">Lade …</p>';return}
-  if(S.blk){b.innerHTML=`<p class="empty">Solange das so ist, lässt sich der Server hier nicht verwalten.</p><button class="btn" data-a="retry-srv">${ico('refresh',18)}Neu laden</button>`;return}
+  if(S.blk){
+    const st=S.srv.status||'',inst=/install/.test(st),p=cur(),hp=p&&p.hp;
+    b.innerHTML=(hp&&inst?`<label>Installations-Protokoll</label><div class="srcbox" id="ilog" style="white-space:pre-wrap;max-height:340px;overflow:auto;user-select:text">${esc(S.ilog||'Lade …')}</div>`:`<p class="empty">Solange das so ist, lässt sich der Server hier nicht verwalten.</p>`)
+      +(/failed/.test(st)&&can('settings.reinstall')?`<div class="grid2"><button class="btn pri" data-a="srv-reinst">${ico('refresh',18)}Neu installieren</button>${p&&p.akey?`<button class="btn warn" data-a="srv-del0">${ico('trash',18)}Server löschen</button>`:`<button class="btn" data-a="retry-srv">${ico('refresh',18)}Neu laden</button>`}</div>`:`<button class="btn" data-a="retry-srv">${ico('refresh',18)}Neu laden</button>`);
+    if(hp&&inst)ilogLoad();return}
   if(!TABS.find(x=>x[0]===S.tab&&tabOk(x)))S.tab='set';
   ({con:drawCon,mcx:drawMcx,fil:drawFil,plg:drawPlg,bak:drawBak,sch:drawSch,dbs:drawDbs,net:drawNet,sta:drawSta,set:drawSet})[S.tab]();
 }
@@ -2979,8 +2988,9 @@ const loadNet=quiet=>loadT('net',async()=>{
   let al,old=false;
   try{al=lst(await api('GET',SP('/network/allocations')))}catch(e){if(!hpNow())throw e;al=S.srv.allocs||[];old=true} // ältere Handy-Panels kennen das noch nicht
   let hn=null,pr=null;if(old)return{al,hn:{err:'old'},pr,old};
+  let gey=false;if(isMc(S.srv)&&!isProxy(S.srv)){for(const dir of ['/plugins','/mods']){try{if(lst(await api('GET',SP('/files/list'),{q:{directory:dir}})).some(x=>/^geyser/i.test(x.name))){gey=true;break}}catch(e){}}}
   if(hpNow()){const id=S.srv.id;[hn,pr]=await Promise.all([api('GET','',{base:'/api/handy/network',q:S.netRf?{refresh:1}:undefined,timeout:20000}).catch(e=>({err:e&&e.status===404?'old':fe(e)})),api('GET','',{base:'/api/handy/probe',q:{server:id},timeout:12000}).catch(()=>null)]);S.netRf=0}
-  return{al,hn,pr};
+  return{al,hn,pr,gey};
 },quiet);
 const alAddr=a=>(a.ip_alias||a.ip)+':'+a.port;
 const mcA=(h,port)=>port==25565?h:h+':'+port; // Minecraft braucht den Standard-Port nicht
@@ -3013,6 +3023,7 @@ function netConnect(d){
   if(br)h+=`<p class="st">In Minecraft (Bedrock): <b>Spielen → Server → Server hinzufügen</b> → Adresse = IP unten, Port = <b>${port}</b>.</p>`;
   if(lan)h+=row('wifi','Im selben WLAN / Heimnetz',A(lan),mc?'Mehrspieler → Server hinzufügen':br?'IP '+lan+' · Port '+port:'');
   if(pub)h+=row('globe','Über das Internet',A(pub),fok?'✓ im Router freigegeben'+(n.upnp.router?' ('+esc(n.upnp.router)+')':''):ferr?'✗ Freigabe fehlgeschlagen: '+esc(ferr.err):'nur mit Portfreigabe im Router');
+  if(d.gey){const gf=(n.maps||[]).some(m=>m.port===19132&&m.ok!==false);h+=`<div class="nrow"><span>${ico('cube',18)}</span><div><small>Bedrock-Spieler (Geyser)</small><code>${esc((pub||lan||'IP')+' · Port 19132')}</code><em>UDP · ${gf?'✓ im Router freigegeben':'im WLAN: '+esc(lan||'')+' · Port 19132'}</em></div>${gf?'':`<button class="iconbtn" data-a="net-up19" aria-label="Port 19132 im Router freigeben">${ico('globe',16)}</button>`}</div>`}
   if(n.public.v6)h+=row('globe','Internet (IPv6, nur wenn der Spieler auch IPv6 hat)',mc&&port==25565?n.public.v6:'['+n.public.v6+']:'+port,'');
   h+=row('server','Auf diesem Gerät',A('localhost'),'');
   const p25=mc&&port!=25565&&a.find(x=>x.port==25565);
@@ -3133,7 +3144,7 @@ Object.assign(H,{
   },
   'db-new':()=>dbNew(),'db-open':b=>dbOpen(b.dataset.i),
   'net-new':async()=>{if(await act(()=>api('POST',SP('/network/allocations')),'Adresse zugewiesen'))loadNet(true)},'net-menu':b=>netMenu(b.dataset.i),
-  'net-up':b=>netUp(+b.dataset.p,b.dataset.on==='1'),
+  'net-up':b=>netUp(+b.dataset.p,b.dataset.on==='1'),'net-up19':()=>netUp(19132,true,'UDP'),
   'net-prim':async b=>{if(await act(()=>api('POST',SP('/network/allocations/'+encodeURIComponent(b.dataset.i)+'/primary')),'Hauptadresse ist jetzt 25565 – gilt nach einem Neustart des Servers')){S.nx={};loadNet(true)}},'net-chk':b=>netChk(b.dataset.h,+b.dataset.p,b.dataset.br==='1'),'net-rf':()=>{S.netRf=1;S.nx={};loadNet()},
   'll-pw':()=>{const N=S.nx||(S.nx={});N.pw=!N.pw;redraw('net')},
   'var-edit':b=>varEdit(b.dataset.k),
@@ -3254,6 +3265,7 @@ async function mxLoad(quiet){
     if(!S.srv||S.srv.id!==id)return;
     Object.assign(M,{ptxt:pt||'',pp:parseProps(pt),wl:jarr(wl),ops:jarr(op),ban:jarr(bn),eula:eu==null?null:/^\s*eula\s*=\s*true/im.test(eu),info:inf,vars,fresh:pt==null});
     if(hpNow())M.pr=await api('GET','',{base:'/api/handy/probe',q:{server:id},timeout:12000}).catch(()=>null);
+    if(inf&&inf.loader){const l=await mcList(cur(),id,inf);M.geyser=l.some(x=>/^geyser/i.test(x.name));M.flood=l.some(x=>/^floodgate/i.test(x.name))}
   }catch(e){M.err=fe(e)}
   M.ld=0;if(S.tab==='mcx')drawMcx();
   if(M.sec==='ply'&&mxRun()&&!quiet)mxOnline();
@@ -3278,6 +3290,7 @@ function mxOver(M){
   ${mem&&mem<1024?'<p class="st">Tipp: Unter 1 GB RAM ruckelt Minecraft schnell. Für 2–5 Spieler sind 1,5–2 GB gut (Einstellungen → Ressourcen bzw. im Admin-Bereich).</p>':''}
   <div class="grid2"><button class="btn" data-a="tab" data-t="net">${ico('globe',18)}Netzwerk</button>${can('file.create')&&I.loader?`<button class="btn" data-a="tab" data-t="plg">${ico('puzzle',18)}${isModL(I.loader)?'Mods':'Plugins'}</button>`:`<button class="btn" data-a="mx-sec" data-v="set">${ico('sliders',18)}Einstellungen</button>`}</div>
   ${vv&&can('startup.update')?`<button class="btn" data-a="mx-ver">${ico('refresh',18)}Minecraft-Version ändern</button>`:''}
+  ${/^(paper|fabric|neoforge)$/.test(I.loader||'')?(M.geyser?`<div class="banner ok"><b>Bedrock-Spieler erlaubt (Geyser${M.flood?' + Floodgate':''}).</b> Sie verbinden sich mit derselben IP und Port <b>19132</b> (UDP) – siehe Reiter Netzwerk.</div>`:`<button class="btn" data-a="mx-geyser"${M.gbusy?' disabled':''}>${ico('cube',18)}${M.gbusy?'Installiere Geyser …':'Bedrock-Spieler erlauben (Geyser)'}</button><p class="st">Damit können Spieler mit Minecraft für Handy, Konsole oder Windows (Bedrock) auf diesen Java-Server – ohne eigenen Bedrock-Server.</p>`):''}
   <p class="st">Spieler verwalten, server.properties bequem bearbeiten und die Welt sichern oder neu erzeugen: oben die Bereiche wählen.</p>`}
 function mxPly(M){
   const O=M.onl,row=(n,meta,a)=>`<div class="item"><span class="ib sm" style="overflow:hidden"><img src="https://mc-heads.net/avatar/${encodeURIComponent(n.replace(/^[.*]/,''))}/36" alt="" width="36" height="36" loading="lazy" onerror="this.remove()"></span><span class="tx"><b>${esc(n)}</b>${meta?`<small>${meta}</small>`:''}</span>${a}</div>`;
@@ -3310,6 +3323,19 @@ function mxWld(M){
   <button class="btn" data-a="mx-wdl">${ico('down',18)}Welt herunterladen (Sicherung)</button>
   <button class="btn warn" data-a="mx-wrs">${ico('refresh',18)}Welt neu erzeugen</button>
   <p class="st">Eigene Welt einspielen: Im Reiter <b>Dateien</b> die ZIP hochladen, entpacken und den Ordner in <b>${esc(lv)}</b> umbenennen (der Server muss dabei aus sein).</p>`}
+// Geyser + Floodgate: Bedrock-Spieler auf Java-Servern (Plugin bzw. Mod, Port 19132 UDP)
+async function mxGeyser(){
+  const M=S.mx,I=M.info||{},pl=I.loader==='paper'?'spigot':I.loader,id=S.srv.id;if(!pl)return;
+  if(!await yes('Bedrock-Spieler erlauben?','Installiert <b>Geyser</b> und <b>Floodgate</b> (von GeyserMC) in '+esc(I.dir)+'. Bedrock-Spieler verbinden sich dann mit derselben IP und Port <b>19132</b> (UDP). Danach einmal neu starten.','Installieren'))return;
+  M.gbusy=1;drawMcx();const G='https://download.geysermc.org/v2/projects/',pull=(u,n)=>api('POST',SP('/files/pull'),{json:{url:u,directory:I.dir,filename:n,use_header:false,foreground:true},timeout:300000});
+  try{try{await api('POST',SP('/files/create-folder'),{json:{root:'/',name:I.dir.slice(1)}})}catch(e){}
+    await pull(G+'geyser/versions/latest/builds/latest/downloads/'+pl,'Geyser-'+pl[0].toUpperCase()+pl.slice(1)+'.jar');
+    let fw='';if(pl==='spigot')await pull(G+'floodgate/versions/latest/builds/latest/downloads/spigot','floodgate-spigot.jar');else{try{await mrInstall(cur(),id,'floodgate',I)}catch(e){fw=' Floodgate gibt es für diese Version noch nicht – Bedrock-Spieler brauchen dann ein Java-Konto.'}}
+    if(hpNow()){try{const al=lst(await api('GET',SP('/network/allocations')));if(!al.some(a=>a.port===19132))await api('POST',SP('/network/allocations'),{json:{port:19132}})}catch(e){fw+=' Port 19132 ließ sich nicht zuweisen ('+fe(e)+').'}}
+    M.geyser=true;M.flood=pl==='spigot'||!fw.includes('Floodgate');S.ld.net=null;
+    info('Geyser ist installiert','Starte den Server neu, damit Geyser lädt. Danach: Bedrock-Spieler geben deine IP und Port <b>19132</b> ein. Von außen muss Port 19132 (<b>UDP</b>) im Router freigegeben sein – das geht im Reiter Netzwerk.'+esc(fw))}
+  catch(e){info('Installation fehlgeschlagen',esc(fe(e)))}
+  M.gbusy=0;if(S.tab==='mcx')drawMcx()}
 async function mxCmd(c){return api('POST',SP('/command'),{json:{command:c}})}
 async function mxAct(k,n,add){
   const M=S.mx,file={wl:'/whitelist.json',op:'/ops.json',ban:'/banned-players.json'}[k],key={wl:'wl',op:'ops',ban:'ban'}[k];
@@ -3372,6 +3398,7 @@ Object.assign(H,{
     const ev=(S.mx.vars||[]).find(v=>v.env_variable==='EULA');if(await act(async()=>{await api('POST',SP('/files/write'),{q:{file:'/eula.txt'},text:'eula=true\n'});if(ev)await api('PUT',SP('/startup/variable'),{json:{key:'EULA',value:'true'}})},'EULA akzeptiert')){S.mx.eula=true;drawMcx()}},
   'mx-seed':async()=>{try{const x=await conRead(cur(),S.srv.id,{cmd:'seed',ms:2000}),m=/Seed: \[?(-?\d+)\]?/.exec(x.lines.join('\n'));if(m){S.mx.seed=m[1];drawMcx()}else toast('Kein Seed in der Antwort')}catch(e){info('Nicht möglich',esc(fe(e)))}},
   'mx-wdl':()=>mxWorldDl(),
+  'mx-geyser':()=>mxGeyser(),
   'mx-wrs':()=>mxWorldReset()
 });
 /* ----- Brücke für andere Teile der App (z. B. AI Agents) ----- */
@@ -3508,7 +3535,7 @@ async function adSrv(id){
 async function adNew(){
   const A=S.ad;A.nw={st:'load'};drawAdmin();
   try{const[u,n,ne]=await Promise.all([A.d.usr||aall('/users'),A.d.nod||aall('/nodes',{include:'location'}),A.d.egg||aall('/nests',{include:'eggs'})]);A.d.usr=u;A.d.nod=n;A.d.egg=ne;
-    const eggs=[];ne.forEach(x=>(relOf(x,'eggs')||[]).forEach(e=>eggs.push({nest:x.id,nn:x.name,id:e.id,name:e.name})));
+    const eggs=[];ne.forEach(x=>(relOf(x,'eggs')||[]).forEach(e=>eggs.push({nest:x.id,nn:x.name,id:e.id,name:e.name,uns:e.toolbox_unsupported||null})));
     A.nw={st:'form',eggs,f:{name:'',description:'',user:u[0]?u[0].id:'',egg:eggs[0]?eggs[0].nest+'/'+eggs[0].id:'',node:n[0]?n[0].id:'',alloc:'',memory:2048,swap:0,disk:10240,cpu:100,io:500,databases:0,backups:1,allocations:1,start:true,image:'',startup:'',env:{}},eg:null,al:null};
     drawAdmin();await adEgg();await adAllocs();
   }catch(e){A.nw=null;drawAdmin();info('Das hat nicht geklappt',esc(fe(e)))}}
@@ -3518,7 +3545,7 @@ async function adEgg(){const N=S.ad&&S.ad.nw;if(!N||!N.f.egg)return;const[nest,i
   catch(er){N.eg={err:fe(er)}}drawNew()}
 // Passenden freien Port vorschlagen: Minecraft 25565 …, Lavalink 2333 …, sonst nicht die Minecraft-Ports
 function adPickAlloc(N){if(!Array.isArray(N.al)||!N.al.length||!N.eg||N.eg.err)return;const n=String(N.eg.name||'')+' '+String(N.eg.startup||''),mcp=a=>(a.port>=25565&&a.port<=25575)||a.port===19132;
-  const ok=/lavalink/i.test(n)?a=>a.port>=2333&&a.port<=2340:/velocity/i.test(n)?a=>a.port===25577||(a.port>=25565&&a.port<=25575):/teamspeak/i.test(n)?a=>a.port===9987:/paper|vanilla|fabric|forge|spigot|purpur|bukkit|minecraft|nogui/i.test(n)?a=>a.port>=25565&&a.port<=25575:a=>!mcp(a)&&!(a.port>=2333&&a.port<=2340)&&a.port!==25577&&a.port!==9987;
+  const ok=/bedrock/i.test(n)?a=>a.port>=19132&&a.port<=19140:/lavalink/i.test(n)?a=>a.port>=2333&&a.port<=2340:/velocity/i.test(n)?a=>a.port===25577||(a.port>=25565&&a.port<=25575):/teamspeak/i.test(n)?a=>a.port===9987:/paper|vanilla|fabric|forge|spigot|purpur|bukkit|minecraft|nogui/i.test(n)?a=>a.port>=25565&&a.port<=25575:a=>!mcp(a)&&!(a.port>=2333&&a.port<=2340)&&a.port!==25577&&a.port!==9987;
   const curA=N.al.find(a=>String(a.id)===String(N.f.alloc));if(curA&&ok(curA))return;const b=N.al.find(ok);if(b)N.f.alloc=b.id}
 async function adAllocs(){const N=S.ad&&S.ad.nw;if(!N||!N.f.node)return;N.al=null;drawNew();
   try{const l=await aall('/nodes/'+N.f.node+'/allocations');if(S.ad.nw!==N)return;N.al=l.filter(a=>!a.assigned);N.f.alloc=N.al[0]?N.al[0].id:'';adPickAlloc(N)}catch(e){N.al={err:fe(e)}}drawNew()}
@@ -3533,11 +3560,12 @@ function drawNew(){
   ${inp('name','Name')}<label>Beschreibung (optional)</label><textarea data-nf="description" rows="2">${esc(f.description)}</textarea>
   <label>Besitzer</label><div class="addrow" style="margin-top:0"><select data-nf="user" style="flex:1">${U.map(u=>`<option value="${u.id}"${String(u.id)===String(f.user)?' selected':''}>${esc(u.username)} (${esc(u.email)})</option>`).join('')}</select><button class="btn" data-a="ad-unew2" aria-label="Neuer Benutzer">${ico('plus',18)}</button></div>
   <p class="ai-sec">Art des Servers</p>
-  <label>Egg (Vorlage)</label><select data-nf="egg" id="negg">${N.eggs.map(e=>`<option value="${e.nest}/${e.id}"${f.egg===e.nest+'/'+e.id?' selected':''}>${esc(e.nn)} · ${esc(e.name)}</option>`).join('')}</select>
+  <label>Egg (Vorlage)</label><select data-nf="egg" id="negg">${N.eggs.map(e=>`<option value="${e.nest}/${e.id}"${f.egg===e.nest+'/'+e.id?' selected':''}>${esc(e.nn)} · ${esc(e.name)}${e.uns?' (nicht auf diesem Gerät)':''}</option>`).join('')}</select>
+  ${(()=>{const u=N.eggs.find(e=>f.egg===e.nest+'/'+e.id);return u&&u.uns?`<div class="banner er"><b>Läuft nicht auf diesem Gerät.</b> ${esc(u.uns)}</div>`:''})()}
   ${!N.eggs.length?'<div class="banner">Im Panel gibt es noch keine Eggs.</div>':''}
-  ${eg?eg.err?`<p class="st err">${esc(eg.err)}</p>`:`${imgs.length?`<label>${hpNow()?'Java-Version':'Docker-Image'}</label><select data-nf="image">${imgs.map(([k,i])=>`<option value="${esc(i)}"${i===f.image?' selected':''}>${esc(k)}</option>`).join('')}</select>`:inp('image','Docker-Image')}
+  ${eg?eg.err?`<p class="st err">${esc(eg.err)}</p>`:`${imgs.length===1&&hpNow()?'':imgs.length?`<label>${hpNow()?'Java-Version':'Docker-Image'}</label><select data-nf="image">${imgs.map(([k,i])=>`<option value="${esc(i)}"${i===f.image?' selected':''}>${esc(k)}</option>`).join('')}</select>`:inp('image','Docker-Image')}
     <label>Startbefehl</label><textarea data-nf="startup" rows="2" class="code">${esc(f.startup)}</textarea>
-    ${vars.map(v=>`<label>${esc(v.name)}${/required/.test(v.rules||'')?' *':''}</label>${/in:true,false|in:false,true/.test(v.rules||'')?`<select data-ne="${esc(v.env_variable)}"><option value="true"${f.env[v.env_variable]==='true'?' selected':''}>Ja</option><option value="false"${f.env[v.env_variable]!=='true'?' selected':''}>Nein</option></select>`:`<input data-ne="${esc(v.env_variable)}" value="${esc(f.env[v.env_variable]||'')}" autocomplete="off" autocapitalize="off" spellcheck="false">`}<p class="ai-hint">${esc((v.description||'').slice(0,200))} <code>${esc(v.env_variable)}</code></p>`).join('')}`:'<p class="st">Lade Egg …</p>'}
+    ${vars.map(v=>`<label>${esc(v.name)}${/required/.test(v.rules||'')?' *':''}</label>${/in:true,false|in:false,true/.test(v.rules||'')?`<select data-ne="${esc(v.env_variable)}"><option value="true"${f.env[v.env_variable]==='true'?' selected':''}>Ja</option><option value="false"${f.env[v.env_variable]!=='true'?' selected':''}>Nein</option></select>`:/in:[^|]+/.test(v.rules||'')?`<select data-ne="${esc(v.env_variable)}">${/in:([^|]+)/.exec(v.rules)[1].split(',').map(o=>`<option value="${esc(o)}"${f.env[v.env_variable]===o?' selected':''}>${esc(o)}</option>`).join('')}</select>`:`<input data-ne="${esc(v.env_variable)}" value="${esc(f.env[v.env_variable]||'')}" autocomplete="off" autocapitalize="off" spellcheck="false">`}<p class="ai-hint">${esc((v.description||'').slice(0,200))} <code>${esc(v.env_variable)}</code></p>`).join('')}`:'<p class="st">Lade Egg …</p>'}
   <p class="ai-sec">Ressourcen</p>
   <div class="grid2"><div>${inp('memory','RAM (MB)','number',' min="0"')}</div><div>${inp('disk','Speicher (MB)','number',' min="0"')}</div></div>
   <div class="grid2"><div>${inp('cpu','CPU (%)','number',' min="0"')}</div><div>${inp('swap','Swap (MB)','number')}</div></div>
@@ -3548,7 +3576,7 @@ function drawNew(){
   ${!ND.length?'<div class="banner">Es gibt noch keinen Node. Lege im Reiter „Nodes“ zuerst einen an.</div>':''}
   ${N.al?N.al.err?`<p class="st err">${esc(N.al.err)}</p>`:N.al.length?`<label>Port (Allocation)</label><select data-nf="alloc">${N.al.map(a=>`<option value="${a.id}"${String(a.id)===String(f.alloc)?' selected':''}>${esc((a.alias||a.ip)+':'+a.port)}</option>`).join('')}</select>`:`<div class="banner">Auf diesem Node ist kein Port frei. Füge im Reiter „Nodes“ Ports hinzu.</div>`:ND.length?'<p class="st">Lade freie Ports …</p>':''}
   <label class="chk"><input type="checkbox" data-nf="start"${f.start?' checked':''}>Nach der Installation automatisch starten</label>
-  <button class="btn pri" data-a="ad-create">${ico('check',18)}Server erstellen</button><p class="st" id="nst"></p>`;
+  <button class="btn pri" data-a="ad-create"${(N.eggs.find(e=>f.egg===e.nest+'/'+e.id)||{}).uns?' disabled':''}>${ico('check',18)}Server erstellen</button><p class="st" id="nst"></p>`;
 }
 async function adCreate(){
   rdNew();const N=S.ad.nw,f=N.f,st=$('#nst',el);
@@ -3912,6 +3940,9 @@ Object.assign(H,{
   up:()=>toList(),
   pw:b=>power(b.dataset.s),
   tab:b=>setTab(b.dataset.t),
+  'srv-reinst':async()=>{const id=S.srv.id;if(await act(()=>api('POST',SP('/settings/reinstall')),'Neuinstallation gestartet')){S.ilog='';await loadDetail(id);drawTop();drawTabs();drawBody()}},
+  'srv-del0':async()=>{const s=S.srv;if(!await yes('Server löschen?','<b>'+esc(s.name)+'</b> wird mit allen Dateien gelöscht.','Löschen',true))return;
+    if(await act(async()=>{const app=(await aall('/servers')).find(x=>x.identifier===s.id);if(!app)throw new ApiErr('Server im Admin-Bereich nicht gefunden.');await aapi('DELETE','/servers/'+app.id)},'Gelöscht'))toList()},
   'retry-srv':async()=>{
     const id=S.srv.id;S.detErr=null;drawBody();await loadDetail(id);
     if(!S.srv||S.srv.id!==id)return;drawTop();drawTabs();drawBody();if(!S.detErr&&!S.blk)startLive();
@@ -5041,7 +5072,7 @@ tool({id:'set',sys:1,icon:'sliders',title:'Einstellungen',desc:'Design, Textgrö
   <label>Standard-Verschlüsselung</label><select id="al">${Object.entries(ALGS).map(([k,v])=>`<option value="${k}"${k===SET.alg?' selected':''}>${v.n}</option>`).join('')}</select>
   <label>Daten</label><button id="rs" class="btn">${ico('trash',18)}Alle Daten zurücksetzen</button>
   <p class="st">Löscht Notizen, eigene Stile, Server-Verbindungen (samt API-Schlüsseln), die Daten der AI Agents (Chats, Arbeitsbereiche, Wissen), Chat-Kontakte samt Verlauf und Einstellungen von diesem Gerät. Erstelle vorher ein Backup. Heruntergeladene KI-Modelle bleiben erhalten – die löschst du unter AI Agents → Modelle.</p>
-  <p class="foot">Toolbox · Version 1.11</p>`;
+  <p class="foot">Toolbox · Version 1.11.1</p>`;
   el.onclick=e=>{const b=e.target.closest('button');if(!b)return;const g=b.closest('.seg');
     if(g){const k=g.dataset.k;SET[k]=k==='z'?+b.dataset.v:b.dataset.v;g.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));saveSet();if(k==='nt'&&SET.nt==='on')askNt(g)}
     else if(b.dataset.ac!=null){SET.ac=+b.dataset.ac;el.querySelectorAll('.sw').forEach(x=>x.classList.toggle('on',x===b));saveSet()}
